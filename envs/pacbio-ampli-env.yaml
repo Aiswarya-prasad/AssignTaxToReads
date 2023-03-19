@@ -1,0 +1,57 @@
+name: pacbio-ampli-env
+
+channels:
+  - bioconda
+  - conda-forge
+  - pwwang
+
+dependencies:
+  - python
+  - biopython
+  - fastqc
+  - trimmomatic
+  - cutadapt
+  - samtools
+  - bcftools
+  - pysam
+  - mafft
+  - biopython
+  - numpy
+  - pandas
+  - argparse
+  - r-base
+  - r-rmarkdown
+  - r-ggplot2
+  - r-prettydoc
+  - r-tidyverse
+  - r-viridis
+  - r-hrbrthemes
+  - r-ggthemes
+  - r-RColorBrewer
+  - r-scales
+  - r-codetools
+  - r-dplyr
+  - r-xlsx
+  - r-rmdformats
+  - r-plotly
+  - r-gridExtra
+  - r-ape
+  - r-vegan
+  - r-ggvenndiagram
+  - r-venndiagram
+  - r-pheatmap
+  - r-heatmaply
+  - r-readxl
+  - r-cowplot
+  - r-ggforce
+  - r-ggdendro
+  - r-ggnewscale
+  - bioconductor-phyloseq
+  - bioconductor-biostrings
+  - bioconductor-complexheatmap
+  - bioconductor-dada2
+  - bioconductor-shortread
+  - bioconductor-biomformat
+  - bioconductor-microbiome
+  - bioconductor-decipher
+  - bbmap
