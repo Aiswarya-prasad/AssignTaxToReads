@@ -8,5 +8,7 @@
 *.fastq.gz
 *.fastq
 *.snakemake*
+*.snakemake/*
 *.lock*
-*.log*
+*lock*
+*log*
