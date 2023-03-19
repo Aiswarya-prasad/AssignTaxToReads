@@ -3,6 +3,9 @@ This pipeline is written by Aiswarya Prasad (aiswarya.prasad@unil.ch) and is
 intended primarily for her own use in her PhD thesis project(s). It is being written
 to work on snakemake v6.15.5 and run in a cluster using the slurm profile mentioned
  here (https://github.com/RomainFeron/snakemake-slurm) and minor modifications.
+
+This was run in curnagl with
+snakemake -p --use-conda --conda-prefix /scratch/aprasad/built-envs/ --conda-frontend mamba --profile slurm --restart-times 0 -r --cluster-cancel scancel --keep-going --rerun-incomplete --rerun-triggers mtime -n
 """
 
 import os
