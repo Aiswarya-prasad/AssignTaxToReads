@@ -131,7 +131,7 @@ rule assign_reads_to_strains:
         alignment = "database/16S_sequences/16S_aligned.fasta"
     output:
         csv = "03_assign_reads_to_strain/{sample}_strain_counts.csv",
-        summary = "03_assign_reads_to_strain/{sample}_summary.txt"
+        summary = "03_assign_reads_to_strain/{sample}_summary.txt",
     threads: 2
     conda: 
         "envs/pacbio-ampli-env.yaml"
@@ -140,19 +140,19 @@ rule assign_reads_to_strains:
         mailto="aiswarya.prasad@unil.ch",
         mailtype="BEGIN,END,FAIL,TIME_LIMIT_80",
         account="pengel_spirit",
-        runtime_s=convertToSec("0-1:10:00")
+        runtime_s=convertToSec("0-5:10:00")
     resources:
-        mem_mb = 16000
+        mem_mb = convertToMb("80G")
     log:
-        "database/16S_sequences/{sample}_assign_reads_to_strains.log"
+        "03_assign_reads_to_strain/{sample}_assign_reads_to_strains.log"
     benchmark:
-        "database/16S_sequences/{sample}_assign_reads_to_strains.benchmark"
+        "03_assign_reads_to_strain/{sample}_assign_reads_to_strains.benchmark"
     shell:
         """
         python3 scripts/assign_reads_to_strains.py --database_path {params.database_path} \
                                            --reads_file {input.reads_file} \
                                            --summary_file_path {output.summary} \
-                                           --output_path {output.csv} \
-                                           --sample_name {wildcards.sample}
+                                           --outfile_path {output.csv} \
+                                           --sample_name {wildcards.sample} | tee {log}
         """
 
