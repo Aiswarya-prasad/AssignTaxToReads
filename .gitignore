@@ -2,6 +2,7 @@
 *ReadsRenamed*
 *FastQC*
 *assign*
+*Assign*
 *Dada*
 *database*
 *RDS*
@@ -12,3 +13,4 @@
 *.lock*
 *lock*
 *log*
+*.R*/*

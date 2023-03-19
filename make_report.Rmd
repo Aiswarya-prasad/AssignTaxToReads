@@ -140,7 +140,7 @@ remove_extension <- function(x, extension) {
   strsplit(x, extension)[[1]][[1]]
 }
 
-working_dir <- "/home/aiswarya/mnt/nas_recherche/spirit/D2c/aprasad/20220921_aprasad_PriorityEffectsExperimentPilot/03_PilotExperiment/07_PacBIO_sequencing"
+working_dir <- paste0(path_to_nas, "spirit/D2c/aprasad/20220921_aprasad_PriorityEffectsExperimentPilot/03_PilotExperiment/07_PacBIO_sequencing")
 setwd(working_dir)
 metadata_path <- "../06_PCR_PacBio/PCR_plan.xlsx"
 df_meta_pilot <- read_excel(metadata_path, sheet = 1)
