@@ -4,17 +4,16 @@ intended primarily for her own use in her PhD thesis project(s). It is being wri
 to work on snakemake v6.15.5 and run in a cluster using the slurm profile mentioned
  here (https://github.com/RomainFeron/snakemake-slurm) and minor modifications.
 
-This was run in curnagl with
-snakemake -p --use-conda --conda-prefix /scratch/aprasad/built-envs/ --conda-frontend mamba --profile slurm --restart-times 0 -r --cluster-cancel scancel --keep-going --rerun-incomplete --rerun-triggers mtime -n
+This was run in curnagl (in conda environment called snakemake_7.7) with
+snakemake -p --use-conda --conda-prefix /work/FAC/FBM/DMF/pengel/spirit/aprasad/snakemake-conda-envs --conda-frontend mamba --profile slurm --restart-times 0 -r --cluster-cancel scancel --keep-going --rerun-incomplete -n
 """
 
 import os
 import itertools
 
-configfile: "config/config.yaml"
+configfile: "config.yaml"
 
 SAMPLES = config["raw_files"].keys()
-INPUT_FILES = [file_path for path in config["raw_files"].values()]
 
 def convertToMb(string):
     """
@@ -54,7 +53,7 @@ rule all:
 
 rule rename_reads:
     input:
-        file = lambda wildcards: [file_path for path in config["raw_files"][wildcards.sample]]
+        file = lambda wildcards: [path for path in config["raw_files"][wildcards.sample]]
     output:
         reads_renamed = "01_ReadsRenamed/{sample}_reads.fastq.gz"
     conda: 
@@ -74,7 +73,7 @@ rule rename_reads:
 
 rule fastqc:
     input:
-        reads = rules.reads_renamed.output.reads_renamed
+        reads = rules.rename_reads.output.reads_renamed
     output:
         html="02_FastQCBeforeTrimming/{sample}_fastqc.html",
         zip="02_FastQCBeforeTrimming/{sample}_fastqc.zip"
@@ -82,7 +81,7 @@ rule fastqc:
     conda: 
         "envs/pacbio-ampli-env.yaml"
     params:
-        outdir = "02_FastQCBeforeTrimming"
+        outdir = "02_FastQCBeforeTrimming",
         mailto="aiswarya.prasad@unil.ch",
         mailtype="BEGIN,END,FAIL,TIME_LIMIT_80",
         account="pengel_spirit",
@@ -96,7 +95,7 @@ rule fastqc:
 
 rule identify_write_positions:
     input:
-        16S_fasta_sequences = config["database"]["all_sequences"]
+        fasta_sequences = config["database"]["all_sequences"]
     output:
         pickle_file = "database/16S_sequences/unique_position_info.pickle",
         alignment = "database/16S_sequences/16S_aligned.fasta"
@@ -119,7 +118,7 @@ rule identify_write_positions:
     shell:
         """
         python3 scripts/identify_unique_position_set.py --database_path {params.database_path} \
-                                        --input_fasta {input.16S_fasta_sequences} \
+                                        --input_fasta {input.fasta_sequences} \
                                         --output_file {output.pickle_file} \
                                         --subset true
                                         --list_strains {parama.list_strains} | tee {log}
@@ -127,7 +126,7 @@ rule identify_write_positions:
 
 rule assign_reads_to_strains:
     input:
-        reads_file = rules.reads_renamed.output.reads_renamed,
+        reads_file = rules.rename_reads.output.reads_renamed,
         pickle_file = "database/16S_sequences/unique_position_info.pickle",
         alignment = "database/16S_sequences/16S_aligned.fasta"
     output:
@@ -145,9 +144,9 @@ rule assign_reads_to_strains:
     resources:
         mem_mb = 16000
     log:
-        "database/16S_sequences/identify_write_positions.log"
+        "database/16S_sequences/{sample}_assign_reads_to_strains.log"
     benchmark:
-        "database/16S_sequences/identify_write_positions.benchmark"
+        "database/16S_sequences/{sample}_assign_reads_to_strains.benchmark"
     shell:
         """
         python3 scripts/assign_reads_to_strains.py --database_path {params.database_path} \
