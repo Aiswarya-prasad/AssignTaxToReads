@@ -132,6 +132,7 @@ rule assign_reads_to_strains:
     output:
         csv = "03_assign_reads_to_strain/{sample}_strain_counts.csv",
         summary = "03_assign_reads_to_strain/{sample}_summary.txt",
+        progress = temp("03_assign_reads_to_strain/{sample}.progress")
     threads: 2
     conda: 
         "envs/pacbio-ampli-env.yaml"
@@ -153,6 +154,7 @@ rule assign_reads_to_strains:
                                            --reads_file {input.reads_file} \
                                            --summary_file_path {output.summary} \
                                            --outfile_path {output.csv} \
-                                           --sample_name {wildcards.sample} | tee {log}
+                                           --sample_name {wildcards.sample} \
+                                           --log_file {output.progress} | tee {log}
         """
 

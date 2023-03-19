@@ -40,7 +40,7 @@ python3 scripts/assign_reads_to_strains.py --database_path "database/16S_sequenc
                                            --summary_file_path "03_assign_reads_to_strain/2-12_summary.txt" \
                                            --outfile_path "03_assign_reads_to_strain/2-12_strain_counts.csv" \
                                            --sample "2-12" \
-                                           --log_file  "03_assign_reads_to_strain/{sample}_assign_reads_to_strains.log"
+                                           --log_file  "03_assign_reads_to_strain/2-12_assign_reads_to_strains.log"
 """
 
 import os
@@ -142,13 +142,6 @@ summary_file_path = args.summary_file_path
 outfile_path = args.outfile_path
 sample = args.sample_name
 log_file_path = args.log_file
-
-database_path = "database/16S_sequences/"
-input_reads_file = "01_ReadsRenamed/3-15_reads.fastq.gz"
-summary_file_path = "03_assign_reads_to_strain/3-15_summary.txt"
-outfile_path = "03_assign_reads_to_strain/3-15_strain_counts.csv"
-sample = "3-15"
-log_file_path = "03_assign_reads_to_strain/3-15_assign_reads_to_strains.log"
 
 temp_dir = os.path.join(os.path.dirname(outfile_path), sample+"_temp_files")
 
