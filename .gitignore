@@ -7,3 +7,5 @@
 *RDS*
 *.fastq.gz
 *.fastq
+*.snakemake*
+*.lock*
