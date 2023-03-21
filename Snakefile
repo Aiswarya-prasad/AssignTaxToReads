@@ -4,8 +4,8 @@ intended primarily for her own use in her PhD thesis project(s). It is being wri
 to work on snakemake v6.15.5 and run in a cluster using the slurm profile mentioned
  here (https://github.com/RomainFeron/snakemake-slurm) and minor modifications.
 
-This was run in curnagl (in conda environment called snakemake_7.7) with
-snakemake -p --use-conda --conda-prefix /work/FAC/FBM/DMF/pengel/spirit/aprasad/snakemake-conda-envs --conda-frontend mamba --profile slurm --restart-times 0 -r --cluster-cancel scancel --keep-going --rerun-incomplete -n
+This was run in curnagl (in conda environment called snakemake_with samtools which has snakemake version 7.8.5) with
+snakemake -p --use-conda --conda-prefix /work/FAC/FBM/DMF/pengel/spirit/aprasad/snakemake-conda-envs --conda-frontend mamba --profile slurm --restart-times 0 -r --cluster-cancel scancel --keep-going --rerun-incomplete --rerun-triggers mtime -n
 """
 
 import os
@@ -49,7 +49,8 @@ def convertToSec(string):
 
 rule all:
     input:
-        expand("03_assign_reads_to_strain/{sample}_strain_counts.csv", sample=SAMPLES)
+        expand("03_assign_reads_to_strain/{sample}_strain_counts.csv", sample=SAMPLES),
+        # expand("03_assign_reads_to_strain_95/{sample}_strain_counts.csv", sample=SAMPLES)
 
 rule rename_reads:
     input:
@@ -120,8 +121,8 @@ rule identify_write_positions:
         python3 scripts/identify_unique_position_set.py --database_path {params.database_path} \
                                         --input_fasta {input.fasta_sequences} \
                                         --output_file {output.pickle_file} \
-                                        --subset true
-                                        --list_strains {parama.list_strains} | tee {log}
+                                        --subset true \
+                                        --list_strains {params.list_strains} | tee {log}
         """
 
 rule assign_reads_to_strains:
@@ -138,6 +139,7 @@ rule assign_reads_to_strains:
         "envs/pacbio-ampli-env.yaml"
     params:
         database_path = config["database"]["database_path"], # alignment and pickle file will be found inside by script
+        match_id_cutoff = 0.97,
         mailto="aiswarya.prasad@unil.ch",
         mailtype="BEGIN,END,FAIL,TIME_LIMIT_80",
         account="pengel_spirit",
@@ -155,6 +157,6 @@ rule assign_reads_to_strains:
                                            --summary_file_path {output.summary} \
                                            --outfile_path {output.csv} \
                                            --sample_name {wildcards.sample} \
+                                           --match_id_cutoff {params.match_id_cutoff} \
                                            --log_file {output.progress} | tee {log}
         """
-

@@ -32,7 +32,8 @@ python3 <path-to-script-dir>/assign_reads_to_strains.py --database_path <path-to
                                                    --summary_file_path <path-to-summary-file>
                                                    --outfile_path <path-to-output-dir> \
                                                    --sample <sample-name> \
-                                                   --log_file <path-to-log-file>
+                                                   --log_file <path-to-log-file> \
+                                                   --match_id_cutoff <proportion>
 Example:
 
 python3 scripts/assign_reads_to_strains.py --database_path "database/16S_sequences/" \
@@ -40,7 +41,8 @@ python3 scripts/assign_reads_to_strains.py --database_path "database/16S_sequenc
                                            --summary_file_path "03_assign_reads_to_strain/2-12_summary.txt" \
                                            --outfile_path "03_assign_reads_to_strain/2-12_strain_counts.csv" \
                                            --sample "2-12" \
-                                           --log_file  "03_assign_reads_to_strain/2-12_assign_reads_to_strains.log"
+                                           --log_file  "03_assign_reads_to_strain/2-12_assign_reads_to_strains.log" \
+                                           --match_id_cutoff 0.95
 """
 
 import os
@@ -78,7 +80,7 @@ def strain_name_of_id(id):
 
 # todo add a sanity check to confirm that the other positions match exactly
 # AlignIO.write(this_alignment, "temp.aln", "fasta")
-def get_strain_matches(aln, positions_dict_given):
+def get_strain_matches(aln, positions_dict_given, match_id_cutoff):
     """
     This function reads the ASV sequence aligned at positions
     of interest. At each position it keeps track of the strains that
@@ -90,6 +92,7 @@ def get_strain_matches(aln, positions_dict_given):
     record. If this ever changes, edit this function accordingly
     aln = this_alignment
     positions_dict_given = positions_dict
+    match_id_cutoff = 0.97
     """ 
     read_sequence = aln[-1].seq
     positions_chosen = [x for x in  positions_dict_given[list(positions_dict_given.keys())[0]].keys()]
@@ -109,8 +112,8 @@ def get_strain_matches(aln, positions_dict_given):
                 # print(f"{positions_dict_given[name][position]} and {base_char} in {name}")
     max_matches = max(matches.values())
     strains_matched = [x for x in matches.keys() if matches[x] == max_matches]
-    # 145/149 or more
-    if max_matches < len(positions_chosen)*0.97:
+    # match_id_cutoff can be 1 because only 16 important positions are chosen
+    if max_matches < len(positions_chosen)*float(match_id_cutoff):
         return(["unknown"])
     return(strains_matched)
 
@@ -134,6 +137,7 @@ requiredNamed.add_argument("-s", "--summary_file_path",metavar="output",required
 requiredNamed.add_argument("-o", "--outfile_path",metavar="output",required=True, help="Path to output file", action="store")
 requiredNamed.add_argument("-n", "--sample_name",metavar="output",required=True, help="Name of sample to be mentioned in output", action="store")
 requiredNamed.add_argument("-l", "--log_file",metavar="output",required=True, help="Path to log file to write progress into", action="store")
+requiredNamed.add_argument("-m", "--match_id_cutoff",metavar="output",required=True, help="Minimum percentage identity (proportion between 0 and 1) to reference positions required", action="store")
 args = parser.parse_args()
 
 database_path = args.database_path
@@ -142,8 +146,18 @@ summary_file_path = args.summary_file_path
 outfile_path = args.outfile_path
 sample = args.sample_name
 log_file_path = args.log_file
+match_id_cutoff = args.match_id_cutoff
+
+# database_path = "database/16S_sequences/"
+# input_reads_file = "01_ReadsRenamed/2-12_reads.fastq.gz"
+# summary_file_path = "temp.summary"
+# outfile_path = "temp_strain.csv"
+# sample = "2-12"
+# log_file_path = "temp.log"
+# match_id_cutoff = "0.97"
 
 temp_dir = os.path.join(os.path.dirname(outfile_path), sample+"_temp_files")
+# temp_dir = "temp"
 
 try:
     os.makedirs(temp_dir)
@@ -219,10 +233,11 @@ with open(summary_file_path, "w") as summary_fh:
             this_alignment = AlignIO.read(StringIO(stdout), "fasta")
             for record in this_alignment:
                 record.id = parse_id(record.id)
-            matched_names = get_strain_matches(this_alignment, positions_dict)
+            matched_names = get_strain_matches(this_alignment, positions_dict, match_id_cutoff)
             matched_strains = [strain_name_of_id(x) for x in matched_names]
             matched_strains_set = set(matched_strains)
             if "unknown" in matched_strains:
+                # print(f"{record.id} : unkown")
                 unknown += 1
             else:
                 if len(matched_strains) == 1:
@@ -231,6 +246,7 @@ with open(summary_file_path, "w") as summary_fh:
                     assigned_ambiguous += 1
             # print(f"{matched_names}")
             # summary_fh.write(f"{matched_names}\n")
+            counts_dict.values()
             for name in matched_names:
                 counts_dict[name] +=1
             strain_counts_df[sample] = counts_dict.values()
