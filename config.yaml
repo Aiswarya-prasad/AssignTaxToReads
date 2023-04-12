@@ -1,0 +1,168 @@
+raw_files:
+  1-1:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1005--bc1033.hifi_reads.fastq.gz
+  1-2:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1007--bc1033.hifi_reads.fastq.gz
+  1-3:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1008--bc1033.hifi_reads.fastq.gz
+  1-4:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1012--bc1033.hifi_reads.fastq.gz
+  1-5:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1015--bc1033.hifi_reads.fastq.gz
+  1-6:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1020--bc1033.hifi_reads.fastq.gz
+  1-7:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1022--bc1033.hifi_reads.fastq.gz
+  1-8:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1024--bc1033.hifi_reads.fastq.gz
+  1-9:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1005--bc1035.hifi_reads.fastq.gz
+  1-10:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1007--bc1035.hifi_reads.fastq.gz
+  1-11:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1008--bc1035.hifi_reads.fastq.gz
+  1-12:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1012--bc1035.hifi_reads.fastq.gz
+  1-13:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1015--bc1035.hifi_reads.fastq.gz
+  1-14:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1020--bc1035.hifi_reads.fastq.gz
+  1-15:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1022--bc1035.hifi_reads.fastq.gz
+  1-16:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1024--bc1035.hifi_reads.fastq.gz
+  1-17:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1005--bc1044.hifi_reads.fastq.gz
+  1-18:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1007--bc1044.hifi_reads.fastq.gz
+  1-19:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1008--bc1044.hifi_reads.fastq.gz
+  1-20:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1012--bc1044.hifi_reads.fastq.gz
+  1-21:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1015--bc1044.hifi_reads.fastq.gz
+  1-22:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1020--bc1044.hifi_reads.fastq.gz
+  1-23:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1022--bc1044.hifi_reads.fastq.gz
+  1-24:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1024--bc1044.hifi_reads.fastq.gz
+  2-1:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1005--bc1045.hifi_reads.fastq.gz
+  2-2:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1007--bc1045.hifi_reads.fastq.gz
+  2-3:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1008--bc1045.hifi_reads.fastq.gz
+  2-4:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1012--bc1045.hifi_reads.fastq.gz
+  2-5:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1015--bc1045.hifi_reads.fastq.gz
+  2-6:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1020--bc1045.hifi_reads.fastq.gz
+  2-7:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1022--bc1045.hifi_reads.fastq.gz
+  2-8:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1024--bc1045.hifi_reads.fastq.gz
+  2-9:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1005--bc1054.hifi_reads.fastq.gz
+  2-10:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1007--bc1054.hifi_reads.fastq.gz
+  2-11:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1008--bc1054.hifi_reads.fastq.gz
+  2-12:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1012--bc1054.hifi_reads.fastq.gz
+  2-13:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1015--bc1054.hifi_reads.fastq.gz
+  2-14:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1020--bc1054.hifi_reads.fastq.gz
+  2-15:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1022--bc1054.hifi_reads.fastq.gz
+  2-16:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1024--bc1054.hifi_reads.fastq.gz
+  2-17:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1005--bc1056.hifi_reads.fastq.gz
+  2-18:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1007--bc1056.hifi_reads.fastq.gz
+  2-19:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1008--bc1056.hifi_reads.fastq.gz
+  2-20:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1012--bc1056.hifi_reads.fastq.gz
+  2-21:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1015--bc1056.hifi_reads.fastq.gz
+  2-22:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1020--bc1056.hifi_reads.fastq.gz
+  2-23:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1022--bc1056.hifi_reads.fastq.gz
+  2-24:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1024--bc1056.hifi_reads.fastq.gz
+  3-1:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1005--bc1057.hifi_reads.fastq.gz
+  3-2:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1007--bc1057.hifi_reads.fastq.gz
+  3-3:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1008--bc1057.hifi_reads.fastq.gz
+  3-4:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1012--bc1057.hifi_reads.fastq.gz
+  3-5:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1015--bc1057.hifi_reads.fastq.gz
+  3-6:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1020--bc1057.hifi_reads.fastq.gz
+  3-7:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1022--bc1057.hifi_reads.fastq.gz
+  3-8:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1024--bc1057.hifi_reads.fastq.gz
+  3-9:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1005--bc1059.hifi_reads.fastq.gz
+  3-10:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1007--bc1059.hifi_reads.fastq.gz
+  3-11:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1008--bc1059.hifi_reads.fastq.gz
+  3-12:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1012--bc1059.hifi_reads.fastq.gz
+  3-13:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1015--bc1059.hifi_reads.fastq.gz
+  3-14:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1020--bc1059.hifi_reads.fastq.gz
+  3-15:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1022--bc1059.hifi_reads.fastq.gz
+  3-16:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1024--bc1059.hifi_reads.fastq.gz
+  3-17:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1005--bc1060.hifi_reads.fastq.gz
+  3-18:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1007--bc1060.hifi_reads.fastq.gz
+  3-19:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1008--bc1060.hifi_reads.fastq.gz
+  3-20:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1012--bc1060.hifi_reads.fastq.gz
+  3-21:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1015--bc1060.hifi_reads.fastq.gz
+  3-22:
+    - 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/m64156_230309_101555.bc1020--bc1060.hifi_reads.fastq.gz
+database:
+  database_path:
+    "database/16S_sequences/"
+  all_sequences:
+    "database/16S_sequences/16S_sequences.fasta.all"
+  subset_genomes:
+    - "ESL0825"
+    - "ESL0822"
+    - "ESL0824"
+    - "ESL0827"
+    - "ESL0200"
+    - "ESL0197"
+    - "ESL0295"
+    - "ESL0185"
+    - "ESL0183"
+    - "ESL0184"
+    - "ESL0186"
+    - "ESL0820"
+    - "ESL0170"
+    - "ESL0198"
+    - "ESL0199"
+    - "ESL0819"
+    - "ESL0394"
+    - "ESL0261"
+    - "ESL0262"
+    - "ESL0350"
+    - "ESL0263"

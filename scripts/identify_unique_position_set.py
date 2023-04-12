@@ -22,6 +22,7 @@ python3 scripts/identify_unique_position_set.py --database_path "database/16S_se
                                         --input_fasta "database/16S_sequences/16S_sequences.fasta.all" \
                                         --output_file "database/16S_sequences/unique_position_info.pickle" \
                                         --subset true
+                                        --list_strains "ESL0825" "ESL0822" "ESL0824" "ESL0827" "ESL0200" "ESL0197" "ESL0295" "ESL0185" "ESL0183" "ESL0184" "ESL0186" "ESL0820" "ESL0170" "ESL0198" "ESL0199" "ESL0819" "ESL0394" "ESL0261" "ESL0262" "ESL0350" "ESL0263"
 """
 
 import os
@@ -54,26 +55,28 @@ requiredNamed.add_argument("-d", "--database_path",metavar="output",required=Tru
 requiredNamed.add_argument("-i", "--input_fasta",metavar="output",required=True, help="Path to directory containing 16 seqeuences", action="store")
 requiredNamed.add_argument("-o", "--output_file",metavar="output",required=True, help="Path to output file containing positional information", action="store")
 requiredNamed.add_argument("-s", "--subset",metavar="output",required=True, help="Set to true (verbatim) if 16S multi fasta should be subset based on the list defined in the script", action="store")
+parser.add_argument("-l", "--list_strains",nargs="+",metavar="output",required=True, help="List of genomes names to subset to", action="store")
 args = parser.parse_args()
 
 database_path = args.database_path
 output_file = args.output_file
 input_fasta = args.input_fasta
 subset = args.subset
+chosen_strains = args.list_strains
 
 sequences16S_file_all = input_fasta
 sequences16S_file = os.path.join(database_path, "16S_sequences.fasta")
 aligned_16S = os.path.join(database_path, "16S_aligned.fasta")
 
-pilot_strains = ["ESL0825", "ESL0822", "ESL0824", "ESL0827", "ESL0200", "ESL0197", "ESL0295", "ESL0185", "ESL0183", "ESL0184", "ESL0186", "ESL0820", "ESL0170", "ESL0198", "ESL0199", "ESL0819", "ESL0394", "ESL0261", "ESL0262", "ESL0350", "ESL0263"]
+# chosen_strains = ["ESL0825", "ESL0822", "ESL0824", "ESL0827", "ESL0200", "ESL0197", "ESL0295", "ESL0185", "ESL0183", "ESL0184", "ESL0186", "ESL0820", "ESL0170", "ESL0198", "ESL0199", "ESL0819", "ESL0394", "ESL0261", "ESL0262", "ESL0350", "ESL0263"]
 
 
 if subset == "true":
     print(f"Creating subset {sequences16S_file} from {sequences16S_file_all} containing the strains:")
-    print(f"{pilot_strains}")
+    print(f"{chosen_strains}")
     selected_records = []
     for record in SeqIO.parse(sequences16S_file_all, "fasta"):
-        if strain_name_of_id(record.id) in pilot_strains:
+        if strain_name_of_id(record.id) in chosen_strains:
             selected_records.append(record)
     SeqIO.write(selected_records, sequences16S_file, "fasta")
 else:
