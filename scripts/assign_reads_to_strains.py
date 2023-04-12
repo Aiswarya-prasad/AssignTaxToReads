@@ -37,11 +37,11 @@ python3 <path-to-script-dir>/assign_reads_to_strains.py --database_path <path-to
 Example:
 
 python3 scripts/assign_reads_to_strains.py --database_path "database/16S_sequences/" \
-                                           --reads_file "01_ReadsRenamed/2-12_reads.fastq.gz" \
-                                           --summary_file_path "03_assign_reads_to_strain/2-12_summary.txt" \
-                                           --outfile_path "03_assign_reads_to_strain/2-12_strain_counts.csv" \
-                                           --sample "2-12" \
-                                           --log_file  "03_assign_reads_to_strain/2-12_assign_reads_to_strains.log" \
+                                           --reads_file "01_ReadsRenamed/2-2_reads.fastq.gz" \
+                                           --summary_file_path "03_assign_reads_to_strain/2-2_summary.txt" \
+                                           --outfile_path "03_assign_reads_to_strain/2-2_strain_counts.csv" \
+                                           --sample "2-2" \
+                                           --log_file  "03_assign_reads_to_strain/2-2_assign_reads_to_strains.log" \
                                            --match_id_cutoff 0.95
 """
 
@@ -149,12 +149,12 @@ log_file_path = args.log_file
 match_id_cutoff = args.match_id_cutoff
 
 # database_path = "database/16S_sequences/"
-# input_reads_file = "01_ReadsRenamed/2-12_reads.fastq.gz"
+# input_reads_file = "01_ReadsRenamed/2-2_reads.fastq.gz"
 # summary_file_path = "temp.summary"
 # outfile_path = "temp_strain.csv"
-# sample = "2-12"
+# sample = "2-2"
 # log_file_path = "temp.log"
-# match_id_cutoff = "0.97"
+# match_id_cutoff = "1"
 
 temp_dir = os.path.join(os.path.dirname(outfile_path), sample+"_temp_files")
 # temp_dir = "temp"
@@ -212,22 +212,22 @@ with open(summary_file_path, "w") as summary_fh:
             total_reads += 1
             sequence_length = len(record.seq)
             if sequence_length > 1562:
-                # print(f"{sequence_length} longer than longest")
+                print(f"{sequence_length} longer than longest")
                 # summary_fh.write(f"{sequence_length} longer than longest\n")
                 longer += 1
             if sequence_length < 1522:
-                # print(f"{sequence_length} shorter than shortest")
+                print(f"{sequence_length} shorter than shortest")
                 # summary_fh.write(f"{sequence_length} shorter than shortest\n")
                 shorter += 1
             if sequence_length <= 1562 and sequence_length >= 1522:
-                # print(f"{sequence_length} within range")
+                print(f"{sequence_length} within range")
                 # summary_fh.write(f"{sequence_length} within range\n")
                 within_range += 1
             this_read_file = os.path.join(temp_dir, "temp.fasta")
             success = SeqIO.write([record], this_read_file, "fasta")
             this_id = record.id
             # If the --keeplength option is given, then the alignment length is unchanged.  Insertions at the new sequences are deleted. 
-            process = subprocess.Popen(["mafft", "--adjustdirection", "--add", this_read_file, aligned_16S],
+            process = subprocess.Popen(["mafft", "--adjustdirection", "--keeplength", "--add", this_read_file, aligned_16S],
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
             stdout, stderr = process.communicate()
             this_alignment = AlignIO.read(StringIO(stdout), "fasta")
@@ -237,13 +237,17 @@ with open(summary_file_path, "w") as summary_fh:
             matched_strains = [strain_name_of_id(x) for x in matched_names]
             matched_strains_set = set(matched_strains)
             if "unknown" in matched_strains:
-                # print(f"{record.id} : unkown")
+                # print(f"{record.id} : unknown")
                 unknown += 1
             else:
                 if len(matched_strains) == 1:
                     assigned_unambiguous += 1
                 else:
                     assigned_ambiguous += 1
+            # if record.id == "m64156_230309_101555/1409/ccs":
+            #     AlignIO.write(this_alignment, "temp.fasta", "fasta")
+            #     print(matched_names)
+            #     break
             # print(f"{matched_names}")
             # summary_fh.write(f"{matched_names}\n")
             counts_dict.values()

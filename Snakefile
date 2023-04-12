@@ -139,7 +139,7 @@ rule assign_reads_to_strains:
         "envs/pacbio-ampli-env.yaml"
     params:
         database_path = config["database"]["database_path"], # alignment and pickle file will be found inside by script
-        match_id_cutoff = 0.97,
+        match_id_cutoff = 1,
         mailto="aiswarya.prasad@unil.ch",
         mailtype="BEGIN,END,FAIL,TIME_LIMIT_80",
         account="pengel_spirit",

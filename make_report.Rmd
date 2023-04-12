@@ -232,17 +232,35 @@ df_assigned_reads_raw <- data.frame()
 for (file in list.files("03_assign_reads_to_strain")) {
   if (grepl("summary", file)) {
     sample = strsplit(file, "_summary")[[1]][[1]]
-    lines = readLines(paste0("03_assign_reads_to_strain/", file), n = 15)
-    total_reads = strsplit(lines[3], "=")[[1]][[2]]
-    unknown = strsplit(lines[7], "=")[[1]][[2]]
-    assigned_unambiguous = strsplit(lines[8], "=")[[1]][[2]]
-    assigned_ambiguous = strsplit(lines[9], "=")[[1]][[2]]
-    vector_to_add <- c(sample, total_reads, unknown, assigned_unambiguous, assigned_ambiguous)
+    lines = readLines(paste0("03_assign_reads_to_strain/", file), n = 10)
+    for (line in lines) {
+      if (grepl("total_reads", line)) {
+        total_reads = strsplit(line, "=")[[1]][[2]]
+      }
+      if (grepl("unknown", line)) {
+        unknown = strsplit(line, "=")[[1]][[2]]
+      }
+      if (grepl("assigned_unambiguous", line)) {
+        assigned_unambiguous = strsplit(line, "=")[[1]][[2]]
+      }
+      if (grepl("assigned_ambiguous", line)) {
+        assigned_ambiguous = strsplit(line, "=")[[1]][[2]]
+      }
+      if (grepl("within", line)) {
+        within_range = strsplit(line, "=")[[1]][[2]]
+      }
+      if (grepl("shorter", line)) {
+        shorter = strsplit(line, "=")[[1]][[2]]
+      }
+      if (grepl("longer", line)) {
+        longer = strsplit(line, "=")[[1]][[2]]
+      }
+    }
+    vector_to_add <- c(sample, total_reads, unknown, assigned_unambiguous, assigned_ambiguous, within_range, shorter, longer)
     df_assigned_reads_raw <- rbind(df_assigned_reads_raw, vector_to_add)
   }
 }
-colnames(df_assigned_reads_raw) <- c("sample", "total_reads", "unknown", "assigned_unambiguous", "assigned_ambiguous")
-
+colnames(df_assigned_reads_raw) <- c("sample", "total_reads", "unknown", "assigned_unambiguous", "assigned_ambiguous", "within_range", "shorter", "longer")
 df_assigned_reads <- df_assigned_reads_raw %>%
                       mutate_at(vars(!contains("sample")), as.numeric) %>%
                       left_join(df_meta, by = c("sample" = "ID"))
@@ -266,19 +284,79 @@ ggplot() +
 df_assigned_reads_plot <- df_assigned_reads %>%
                             select(sample, Treatment, unknown, assigned_unambiguous, assigned_ambiguous) %>%
                             pivot_longer(!c(sample, Treatment), names_to = "Type", values_to = "Count")
+df_assigned_reads_lengths <- df_assigned_reads %>%
+                            select(sample, Treatment, shorter, within_range, longer) %>%
+                            pivot_longer(!c(sample, Treatment), names_to = "Type", values_to = "Count")
 
 ggplot() +
+  geom_point(data = df_assigned_reads_plot,
+           aes(x = -500,
+               y = factor(sample, ID_order),
+               color = Treatment,
+               size = 3
+           ), 
+           position = "stack", stat = "identity"
+  ) +
   geom_bar(data = df_assigned_reads_plot,
-           aes(y = factor(sample, ID_order),
+           aes(y = sample,
                x = Count,
                fill = Type
            ), stat = "identity"
   ) +
+  # geom_vline(xintercept = 3000) +
   labs(x = "Number of raw reads", y = "Sample", fill = "Type") +
-    # scale_fill_manual(values=treatment_order_color) +
+    scale_color_manual(values=treatment_order_color) +
     scale_x_continuous(labels=unit_format(unit = "K", scale = 1e-3)) +
     make_theme(setFill = T, setCol = F, guide_nrow = 3)
     ggsave("Figures/Number_of_reads_by_type.pdf")
+
+ggplot() +
+  geom_point(data = df_assigned_reads_lengths,
+           aes(x = -500,
+               y = factor(sample, ID_order),
+               color = Treatment,
+               size = 3
+           ), 
+           position = "stack", stat = "identity"
+  ) +
+  geom_bar(data = df_assigned_reads_lengths,
+           aes(y = sample,
+               x = Count,
+               fill = Type
+           ), stat = "identity"
+  ) +
+  # geom_vline(xintercept = 3000) +
+  labs(x = "Number of raw reads", y = "Sample", fill = "Type") +
+    scale_color_manual(values=treatment_order_color) +
+    scale_x_continuous(labels=unit_format(unit = "K", scale = 1e-3)) +
+    make_theme(setFill = T, setCol = F, guide_nrow = 3)
+    ggsave("Figures/Number_of_reads_by_type_lengths.pdf")
+
+ggplot() +
+  geom_point(data = df_assigned_reads_plot %>%
+                      group_by(sample) %>%
+                      mutate(Percentage = Count/sum(Count)*100),
+           aes(x = -0.5,
+               y = factor(sample, ID_order),
+               color = Treatment,
+               size = 3
+           ), 
+           position = "stack", stat = "identity"
+  ) +
+  geom_bar(data = df_assigned_reads_plot %>%
+                      group_by(sample) %>%
+                      mutate(Percentage = Count/sum(Count)*100),
+           aes(y = sample,
+               x = Percentage,
+               fill = Type
+           ), stat = "identity"
+  ) +
+  # geom_vline(xintercept = 3000) +
+  labs(x = "Number of raw reads", y = "Sample", fill = "Type") +
+    scale_color_manual(values=treatment_order_color) +
+    scale_x_continuous(labels=unit_format(unit = "K", scale = 1e-3)) +
+    make_theme(setFill = T, setCol = F, guide_nrow = 3)
+    ggsave("Figures/Number_of_reads_by_type_percent.pdf")
 ```
 
 # Assigning ASVs to strains
@@ -366,14 +444,15 @@ This will be used here to parse the output of `assign_reads_to_strains.py` which
 identical_copies <- c("ESL0824", "ESL0200", "ESL0197", "ESL0820", "ESL0170", "ESL0199", "ESL0819","ESL0185", "ESL0186")
 non_identical_copies <- c("ESL0183", "ESL0184")
 single_copies <- c("ESL0825", "ESL0822", "ESL0827", "ESL0295", "ESL0198", "ESL0394", "ESL0263", "ESL0262", "ESL0350", "ESL0261")
-community_a <- c("ESL0825","ESL0822","ESL0824","ESL0827","ESL0200","ESL0197","ESL0295","ESL0185","ESL0183","ESL0184","ESL0186")
+community_ab <- c("ESL0197")
+community_a <- c("ESL0825","ESL0822","ESL0824","ESL0827","ESL0200","ESL0295","ESL0185","ESL0183","ESL0184","ESL0186")
 community_b <- c("ESL0820", "ESL0170", "ESL0198", "ESL0199", "ESL0819", "ESL0394", "ESL0263", "ESL0262", "ESL0350", "ESL0261")
 get_strain_from_id <- function(x) {
   #  x is in the format ESL0394.1_firm4_1
   if (x == "unknown" || x == "Unknown") {
     return(x)
   }
-  strsplit(x, ".", fixed = T)[[1]][[1]]
+  strsplit(x, "-", fixed = T)[[1]][[1]]
 }
 get_sdp_from_id <- function(x) {
   #  x is in the format x="ESL0394.1_firm4_1"
@@ -420,7 +499,15 @@ for (file in list.files("03_assign_reads_to_strain")) {
 # df_strain_counts_raw$ESL0262.1_firm5_2
 # df_strain_counts_raw$ESL0170.1_bifido_1.3
 # df_strain_counts_raw$ESL0170.2_bifido_1.3
-names(df_strain_counts_raw)
+# names(df_strain_counts_raw)
+df_strain_counts_raw_all <- df_strain_counts_raw %>%
+                            mutate_at(vars(contains("ESL")), as.numeric) %>%
+                            mutate(`unknown` = as.numeric(unknown)) %>%
+                              pivot_longer(!Sample, values_to = "Count", names_to = "Strain") %>%
+                              mutate(Community = ifelse(Vectorize(get_strain_from_id)(Strain) %in% community_a, "a", NA)) %>%
+                              mutate(Community = ifelse(Vectorize(get_strain_from_id)(Strain) %in% community_b, "b", Community)) %>%
+                              mutate(Community = ifelse(Vectorize(get_strain_from_id)(Strain) %in% community_ab, "ab", Community)) %>%
+                              left_join(df_meta_pilot, by = c("Sample" = "ID"))
 df_strain_counts <- df_strain_counts_raw %>%
                       mutate_at(vars(contains("ESL")), as.numeric) %>%
                       mutate(`ESL0825` = `ESL0825-1_bifido_1.1`) %>%
@@ -452,62 +539,150 @@ df_strain_counts <- df_strain_counts_raw %>%
                       summarise(Sample, Strain, SDP, Count = sum(Count)) %>%
                               mutate(Community = ifelse(Strain %in% community_a, "a", NA)) %>%
                               mutate(Community = ifelse(Strain %in% community_b, "b", Community)) %>%
+                              mutate(Community = ifelse(Strain %in% community_ab, "ab", Community)) %>%
                               left_join(df_meta_pilot, by = c("Sample" = "ID"))
 
 df_strain_counts_relative <- df_strain_counts %>%
                               group_by(Sample) %>%
                               mutate(Percentage = Count/sum(Count)*100)
 
-df_strain_counts %>% filter(Sample == "3-8") %>% pull(Count)
-df_strain_counts %>% filter(Sample == "3-8") %>% pull(Community)
+# df_strain_counts_raw %>% filter(Sample == "1-16")
+# df_assigned_reads_raw %>% filter(sample == "1-16")
+# df_strain_counts %>% filter(Sample == "1-16") %>% pull(Count)
+# df_strain_counts %>% filter(Sample == "1-16") %>% pull(Community)
+# df_strain_counts_raw_all %>% filter(Sample == "3-5") %>% select(Community, Strain, Count) %>% print(n = 60)
+# df_strain_counts %>% filter(Sample == "3-5") %>% select(Community, Strain, Count) %>% print(n = 60)
 
 ggplot() +
   geom_point(data = df_strain_counts,
            aes(x = -50,
                y = factor(Sample, ID_order),
-               color = Treatment
+               color = Treatment,
+               size = 3
            ), 
            position = "stack", stat = "identity"
   ) +
   geom_bar(data = df_strain_counts,
            aes(x = Count,
                y = factor(Sample, ID_order),
-               fill = factor(Community, c("a", "b"))
+               fill = SDP
            ), 
            position = "stack", stat = "identity"
   ) +
-  labs(x = "Count", y = "Sample", fill = "Community", color = "Treatment") +
-  scale_fill_manual(values = c("#b3cde3", "#fbb4ae"), labels = c("a", "b")) +
+  # geom_vline(xintercept = 3000) +
+  labs(x = "Count", y = "Sample", fill = "SDP", color = "Treatment") +
   scale_color_manual(values=treatment_order_color) +
-  make_theme(setCol = F, setFill = F)
+  make_theme(setCol = F, setFill = T, guide_nrow = 6, palettefill = "Spectral")
+  ggsave("Figures/Plot_sdp_per_sample.pdf")
 
 ggplot() +
   geom_point(data = df_strain_counts %>% 
                   filter(!is.na(Community)) %>% 
                   group_by(Sample) %>%
-                  mutate(total_reads = sum(Count)) %>%
-                  filter(total_reads > 5000),
-           aes(x = -100,
+                  mutate(total_reads = sum(Count))
+           aes(x = -20,
                y = factor(Sample, ID_order),
-               color = Treatment
+               color = Treatment,
+               size = 3
+           ), 
+           position = "stack", stat = "identity"
+  ) +
+  scale_color_manual(values=treatment_order_color) +
+  new_scale_color() +
+  geom_bar(data = df_strain_counts %>% 
+                  filter(!is.na(Community)) %>% 
+                  group_by(Sample) %>%
+                  mutate(total_reads = sum(Count))
+           aes(x = Count,
+               y = factor(Sample, ID_order),
+               color = factor(Community, c("a", "b", "ab")),
+               fill = SDP
+           ),
+           position = "stack", stat = "identity"
+  ) +
+  labs(x = "Count", y = "Sample", fill = "SDP", color = "Treatment") +
+  scale_color_manual(values = c("#377eb8", "#e41a1c", "#984ea3"), labels = c("a", "b", "ab")) +
+  make_theme(setCol = F, setFill = T, guide_nrow = 6, palettefill = "Spectral")
+  ggsave("Figures/Plot_sdp_per_sample_assigned_community.pdf")
+
+ggplot() +
+  geom_point(data = df_strain_counts %>% 
+                  filter(!is.na(Community)) %>% 
+                  group_by(Sample) %>%
+                  mutate(total_reads = sum(Count)),
+           aes(x = -20,
+               y = factor(Sample, ID_order),
+               color = Treatment,
+               size = 3
+           ), 
+           position = "stack", stat = "identity"
+  ) +
+  scale_color_manual(values=treatment_order_color) +
+  new_scale_color() +
+  geom_bar(data = df_strain_counts %>% 
+                  filter(!is.na(Community)) %>% 
+                  group_by(Sample) %>%
+                  mutate(total_reads = sum(Count)),
+           aes(x = Count,
+               y = factor(Sample, ID_order),
+               fill = SDP
+           ),
+           position = "stack", stat = "identity"
+  ) +
+  labs(x = "Count", y = "Sample", fill = "SDP", color = "Treatment") +
+  make_theme(setCol = F, setFill = T, guide_nrow = 6, palettefill = "Spectral")
+  ggsave("Figures/Plot_sdp_per_sample_assigned.pdf")
+
+ggplot() +
+  geom_point(data = df_strain_counts,
+           aes(x = -50,
+               y = factor(Sample, ID_order),
+               color = Treatment,
+               size = 3
+           ), 
+           position = "stack", stat = "identity"
+  ) +
+  geom_bar(data = df_strain_counts,
+           aes(x = Count,
+               y = factor(Sample, ID_order),
+               fill = factor(Community, c("a", "b", "ab"))
+           ), 
+           position = "stack", stat = "identity"
+  ) +
+  # geom_vline(xintercept = 3000) +
+  labs(x = "Count", y = "Sample", fill = "Community", color = "Treatment") +
+  scale_fill_manual(values = c("#b3cde3", "#fbb4ae", "#decbe4"), labels = c("a", "b", "ab")) +
+  scale_color_manual(values=treatment_order_color) +
+  make_theme(setCol = F, setFill = F)
+  ggsave("Figures/Plot_community_per_sample.pdf")
+
+ggplot() +
+  geom_point(data = df_strain_counts %>% 
+                  filter(!is.na(Community)) %>% 
+                  group_by(Sample) %>%
+                  mutate(total_reads = sum(Count)),
+           aes(x = -20,
+               y = factor(Sample, ID_order),
+               color = Treatment,
+               size = 3
            ), 
            position = "stack", stat = "identity"
   ) +
   geom_bar(data = df_strain_counts %>% 
                   filter(!is.na(Community)) %>% 
                   group_by(Sample) %>%
-                  mutate(total_reads = sum(Count)) %>%
-                  filter(total_reads > 5000),
+                  mutate(total_reads = sum(Count)),
            aes(x = Count,
                y = factor(Sample, ID_order),
-               fill = factor(Community, c("a", "b"))
+               fill = factor(Community, c("a", "b", "ab"))
            ), 
            position = "stack", stat = "identity"
   ) +
   labs(x = "Count", y = "Sample", fill = "Community", color = "Treatment") +
-  scale_fill_manual(values = c("#b3cde3", "#fbb4ae"), labels = c("a", "b")) +
+  scale_fill_manual(values = c("#b3cde3", "#fbb4ae", "#decbe4"), labels = c("a", "b", "ab")) +
   scale_color_manual(values=treatment_order_color) +
   make_theme(setCol = F, setFill = F)
+  ggsave("Figures/Plot_community_per_sample_assigned.pdf")
 
 ggplot() +
   geom_point(data = df_strain_counts %>% 
@@ -516,7 +691,8 @@ ggplot() +
                       mutate(Percentage = Count/sum(Count)*100),
            aes(x = -0.1,
                y = factor(Sample, ID_order),
-               color = Treatment
+               color = Treatment,
+               size = 3
            ), 
            position = "stack", stat = "identity"
   ) +
@@ -526,22 +702,25 @@ ggplot() +
                       mutate(Percentage = Count/sum(Count)*100),
            aes(x = Percentage,
                y = factor(Sample, ID_order),
-               fill = factor(Community, c("a", "b"))
+               fill = factor(Community, c("a", "b", "ab"))
            ), 
            position = "stack", stat = "identity"
   ) +
-  scale_fill_manual(values = c("#b3cde3", "#fbb4ae"), labels = c("a", "b")) +
+  labs(x = "Percentage", y = "Sample", fill = "Community") +
+  scale_fill_manual(values = c("#b3cde3", "#fbb4ae", "#decbe4"), labels = c("a", "b", "ab")) +
   scale_color_manual(values=treatment_order_color) +
   make_theme(setCol = F, setFill = F)
+  ggsave("Figures/Plot_community_per_sample_percentage.pdf")
 
 ggplot() +
   geom_point(data = df_strain_counts %>% 
                       filter(!is.na(Community)) %>%
                       group_by(Sample) %>%
                       mutate(Percentage = Count/sum(Count)*100),
-           aes(x = -10,
+           aes(x = -0.1,
                y = factor(Sample, ID_order),
-               color = Treatment
+               color = Treatment,
+               size = 3
            ), 
            position = "stack", stat = "identity"
   ) +
@@ -549,15 +728,32 @@ ggplot() +
                       filter(!is.na(Community)) %>%
                       group_by(Sample) %>%
                       mutate(Percentage = Count/sum(Count)*100),
-           aes(x = Count,
+           aes(x = Percentage,
                y = factor(Sample, ID_order),
-               fill = factor(Community, c("a", "b"))
+               fill = factor(Community, c("a", "b", "ab"))
            ), 
            position = "stack", stat = "identity"
   ) +
-  scale_fill_manual(values = c("#b3cde3", "#fbb4ae"), labels = c("a", "b")) +
+  scale_fill_manual(values = c("#b3cde3", "#fbb4ae", "#decbe4"), labels = c("a", "b", "ab")) +
   scale_color_manual(values=treatment_order_color) +
+  labs(x = "Count", y = "Treatment", fill = "Community") +
+  make_theme(setCol = F, setFill = F, guide_nrow = 4)
+  ggsave("Figures/Plot_community_per_sample_assigned_percentage.pdf")
+
+ggplot() +
+  geom_bar(data = df_strain_counts %>% 
+                      group_by(Sample) %>%
+                      mutate(Percentage = Count/sum(Count)*100),
+           aes(x = Count,
+               y = factor(Treatment, treatment_order),
+               fill = factor(Community, c("a", "b", "ab"))
+           ), 
+           position = "stack", stat = "identity"
+  ) +
+  labs(x = "Count", y = "Treatment", fill = "Community") +
+  scale_fill_manual(values = c("#b3cde3", "#fbb4ae", "#decbe4"), labels = c("a", "b", "ab")) +
   make_theme(setCol = F, setFill = F)
+  ggsave("Figures/Plot_community_per_treatment.pdf")
 
 ggplot() +
   geom_bar(data = df_strain_counts %>% 
@@ -566,13 +762,32 @@ ggplot() +
                       mutate(Percentage = Count/sum(Count)*100),
            aes(x = Count,
                y = factor(Treatment, treatment_order),
-               fill = factor(Community, c("a", "b"))
+               fill = factor(Community, c("a", "b", "ab"))
            ), 
            position = "stack", stat = "identity"
   ) +
   labs(x = "Count", y = "Treatment", fill = "Community") +
-  scale_fill_manual(values = c("#b3cde3", "#fbb4ae"), labels = c("a", "b")) +
+  scale_fill_manual(values = c("#b3cde3", "#fbb4ae", "#decbe4"), labels = c("a", "b", "ab")) +
   make_theme(setCol = F, setFill = F)
+  ggsave("Figures/Plot_community_per_treatment_assigned.pdf")
+
+ggplot() +
+  geom_bar(data = df_strain_counts %>%
+                    group_by(Treatment, Strain) %>%
+                    mutate(Count = mean(Count)) %>%
+                    ungroup() %>%
+                    group_by(Treatment) %>%
+                    mutate(Percentage = Count/sum(Count)*100),
+           aes(x = Percentage,
+               y = factor(Treatment, treatment_order),
+               fill = factor(Community, c("a", "b", "ab"))
+           ), 
+           position = "stack", stat = "identity"
+  ) +
+  labs(x = "Count", y = "Treatment", fill = "Community") +
+  scale_fill_manual(values = c("#b3cde3", "#fbb4ae", "#decbe4"), labels = c("a", "b", "ab")) +
+  make_theme(setCol = F, setFill = F)
+  ggsave("Figures/Plot_community_per_treatment_percentage.pdf")
 
 ggplot() +
   geom_bar(data = df_strain_counts %>%
@@ -584,25 +799,14 @@ ggplot() +
                     mutate(Percentage = Count/sum(Count)*100),
            aes(x = Percentage,
                y = factor(Treatment, treatment_order),
-               fill = factor(Community, c("a", "b"))
+               fill = factor(Community, c("a", "b", "ab"))
            ), 
            position = "stack", stat = "identity"
   ) +
   labs(x = "Count", y = "Treatment", fill = "Community") +
-  scale_fill_manual(values = c("#b3cde3", "#fbb4ae"), labels = c("a", "b")) +
-  make_theme(setCol = F, setFill = F)
-
-
-df_strain_counts %>%
-                    filter(!is.na(Community)) %>%
-                    group_by(Treatment, Strain) %>%
-                    mutate(Count = mean(Count)) %>%
-                    ungroup() %>%
-                    group_by(Treatment) %>%
-                    mutate(Percentage = Count/sum(Count)*100) %>%
-                    filter(Treatment == "alq-B") %>%
-                    select(Strain, Community, Count) %>%
-                    print(n = 40)
+  scale_fill_manual(values = c("#b3cde3", "#fbb4ae", "#decbe4"), labels = c("a", "b", "ab")) +
+  make_theme(setCol = F, setFill = F, guide_nrow = 1)
+  ggsave("Figures/Plot_community_per_treatment_assigned_percentage.pdf")
 ```
 
 
@@ -871,6 +1075,7 @@ otu_mat <- seqtable %>% as.data.frame %>%
 taxonomy_mat <- read.table("04_Dada2ResultTaxonomy/Taxtable_strains.csv", sep = ",",header=T) %>%
                     mutate(Community = ifelse(Strain %in% community_a, "a", NA)) %>%
                     mutate(Community = ifelse(Strain %in% community_b, "b", Community)) %>%
+                    mutate(Community = ifelse(Strain %in% community_ab, "ab", Community)) %>%
                     column_to_rownames("X") %>%
                       as.matrix()
 ps_raw <- phyloseq(otu_table(otu_mat, taxa_are_rows=F), 
