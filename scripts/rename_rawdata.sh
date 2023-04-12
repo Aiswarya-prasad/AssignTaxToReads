@@ -1,9 +1,4 @@
-cd /home/aiswarya/mnt/nas_recherche/spirit/D2c/aprasad/20220921_aprasad_PriorityEffectsExperimentPilot/03_PilotExperiment/07_PacBIO_sequencing
-conda activate pacbio-ampli-env
-
-00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads
-
- cp -n 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/*.bc1005--bc1033.hifi_reads.fastq.gz  01_ReadsRenamed/1-1_reads.fastq.gz
+cp -n 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/*.bc1005--bc1033.hifi_reads.fastq.gz  01_ReadsRenamed/1-1_reads.fastq.gz
  cp -n 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/*.bc1007--bc1033.hifi_reads.fastq.gz  01_ReadsRenamed/1-2_reads.fastq.gz
  cp -n 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/*.bc1008--bc1033.hifi_reads.fastq.gz  01_ReadsRenamed/1-3_reads.fastq.gz
  cp -n 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/*.bc1012--bc1033.hifi_reads.fastq.gz  01_ReadsRenamed/1-4_reads.fastq.gz
@@ -73,63 +68,3 @@ conda activate pacbio-ampli-env
  cp -n 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/*.bc1012--bc1060.hifi_reads.fastq.gz  01_ReadsRenamed/3-20_reads.fastq.gz
  cp -n 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/*.bc1015--bc1060.hifi_reads.fastq.gz  01_ReadsRenamed/3-21_reads.fastq.gz
  cp -n 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/*.bc1020--bc1060.hifi_reads.fastq.gz  01_ReadsRenamed/3-22_reads.fastq.gz
- cp -n 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/*.bc1022--bc1060.hifi_reads.fastq.gz  01_ReadsRenamed/LW-1_reads.fastq.gz
- cp -n 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/*.bc1024--bc1060.hifi_reads.fastq.gz  01_ReadsRenamed/NC2-1_reads.fastq.gz
- cp -n 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/*.bc1005--bc1062.hifi_reads.fastq.gz  01_ReadsRenamed/SC_reads.fastq.gz
- cp -n 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/*.bc1007--bc1062.hifi_reads.fastq.gz  01_ReadsRenamed/NC2SC_reads.fastq.gz
- cp -n 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/*.bc1008--bc1062.hifi_reads.fastq.gz  01_ReadsRenamed/M6-5_reads.fastq.gz
- cp -n 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/*.bc1012--bc1062.hifi_reads.fastq.gz  01_ReadsRenamed/C8-2_reads.fastq.gz
- cp -n 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/*.bc1015--bc1062.hifi_reads.fastq.gz  01_ReadsRenamed/D7-4_reads.fastq.gz
- cp -n 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/*.bc1020--bc1062.hifi_reads.fastq.gz  01_ReadsRenamed/F4-3_reads.fastq.gz
- cp -n 00_RawData/AP_16S_Circular_Consensus_Sequencing_Reads/*.bc1022--bc1062.hifi_reads.fastq.gz  01_ReadsRenamed/A4-3_reads.fastq.gz
-
-######
-# Count reads
-######
-
-echo "ID, raw_count" > 01_ReadsRenamed/read_counts.csv
-for file in 01_ReadsRenamed/*_reads.fastq.gz;
-do
-    sample=$(basename ${file})
-    sample=${sample%%_reads*}
-    echo "counting ${sample}"
-    count_raw=$(zcat $file | grep -c "^+$")
-    echo "${sample},${count_raw}" >> 01_ReadsRenamed/read_counts.csv
-done
-
-mkdir 02_FastQCBeforeTrimming
-
-for file in 01_ReadsRenamed/*_reads.fastq.gz;
-do
-    sample=$(basename ${file})
-    sample=${sample%%_reads*}
-    echo "Runnning fastqc for ${sample}"
-    fastqc $file -o 02_FastQCBeforeTrimming/
-done
-
-# No adpter sequence in fastq reads!
-
-# mkdir 03_CutAdaptReads
-
-# for file in 01_ReadsRenamed/*_reads.fastq.gz;
-# do
-#     sample=$(basename ${file})
-#     sample=${sample%%_reads*}
-#     echo "Runnning cutadapt for ${sample}"
-# done
-
-# If headers are fine, use the below code to concatenate into multifasta
-# The format of the name of headers in the 16S sequences database files is expected to be:
-# <strain name>-<# serial number for copy>_<SDP name>.fa
-# SDP name may contain "_" and "." but not "-"
-# eg. ESL252-1_firm5_1
-# for file in  database/16S_sequences/*; do cat $file; echo ""; done | grep -v -e '^$'
-# use
-# mafft --clustalout --auto --adjustdirection database/16S_sequences/16S_sequences.fasta
-# to visualize the output then,
-# "_R_" is added if the sequence had to be reversed
-
-python3 scripts/identify_unique_position_set.py --database_path "database/16S_sequences/" \
-                                                --input_fasta "database/16S_sequences/16S_sequences.fasta" \
-                                                --output_file "database/16S_sequences/unique_position_info.pickle" \
-                                                --subset true

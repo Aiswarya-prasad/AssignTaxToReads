@@ -1,0 +1,13 @@
+Full Traceback (most recent call last):
+  File "/work/FAC/FBM/DMF/pengel/spirit/aprasad/Miniconda3/envs/snakemake_7.7/lib/python3.8/site-packages/snakemake/__init__.py", line 610, in snakemake
+    workflow.include(
+  File "/work/FAC/FBM/DMF/pengel/spirit/aprasad/Miniconda3/envs/snakemake_7.7/lib/python3.8/site-packages/snakemake/workflow.py", line 1236, in include
+    exec(compile(code, snakefile.get_path_or_uri(), "exec"), self.globals)
+  File "/scratch/aprasad/2023-pacbio_sequence_analysis/Snakefile", line 18, in <module>
+  File "/scratch/aprasad/2023-pacbio_sequence_analysis/Snakefile", line 18, in <listcomp>
+NameError: name 'file_path' is not defined
+
+NameError in line 17 of /scratch/aprasad/2023-pacbio_sequence_analysis/Snakefile:
+name 'file_path' is not defined
+  File "/scratch/aprasad/2023-pacbio_sequence_analysis/Snakefile", line 17, in <module>
+  File "/scratch/aprasad/2023-pacbio_sequence_analysis/Snakefile", line 17, in <listcomp>
