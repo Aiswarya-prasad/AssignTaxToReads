@@ -1,0 +1,283 @@
+---
+title: "PacBio 16S Amplicon sequencing analysis"
+author: Aiswarya Prasad
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  prettydoc::html_pretty:
+    theme: cayman
+    <!-- other fun themes: architect leonids hpstr cayman -->
+    highlight: github
+    math: katex
+    number_sections: true
+    df_print: paged
+    cold-folding: hide
+    toc: true
+---
+
+# Setup
+
+The qPCR data can be found on nas recherche - make sure to copy relavant data or files if nas recherche is not mounted. Also ensure that the prefix directory in the qPCR parsing script corresponds to the appropriate path in the machine on which this is being run.
+
+```{r setup}
+library(tidyverse)
+library(ggplot2)
+library(readxl)
+library(viridis)
+library(hrbrthemes)
+library(ggthemes)
+library(RColorBrewer)
+library(scales)
+library(dplyr)
+library(vegan)
+library(ape)
+library(ComplexHeatmap)
+library(ggnewscale)
+library(ggsignif)
+library(plotly)
+library(htmlwidgets)
+library(dada2)
+library(phyloseq)
+library(DECIPHER)
+
+# prefix_dir <- "/home/aiswarya/mnt/nas_recherche/" # for lab workstation
+# prefix_dir <- "/nas/FAC/FBM/DMF/pengel/" # for curnagl
+# working_dir <- paste0(prefix_dir, "spirit/D2c/aprasad/20220921_aprasad_PriorityEffectsExperimentPilot/03_PilotExperiment/07_PacBIO_sequencing")
+working_dir <- paste0("/scratch/aprasad/2023-pacbio_sequence_analysis")
+setwd(working_dir)
+source("/nas/FAC/FBM/DMF/pengel/spirit/D2c/aprasad/20220921_aprasad_PriorityEffectsExperimentPilot/03_PilotExperiment/05_qPCRs/qPCR_parse.R") # set path to directory as needed within the scripts
+source("scripts/utilities.R")
+
+metadata_path <- "/nas/FAC/FBM/DMF/pengel/spirit/D2c/aprasad/20220921_aprasad_PriorityEffectsExperimentPilot/03_PilotExperiment/06_PCR_PacBio/PCR_plan.xlsx"
+
+df_meta_pilot <- read_excel(metadata_path, sheet = 1) %>%
+                  mutate(Treatment = ifelse(Sample == "Day14 - blank", "0-3", Treatment))
+# write.csv(df_meta, file = "230313_metadata.csv", append = F, quote = F, row.names = F)
+treatment_order <- c("AB-0", "A-0", "A-3", "A-3_14", "B-0", "B-3", "B-3_14", "AB-1", "BA-1", "AB-3", "BA-3", "0-3", "alq-A", "alq-AB", "alq-B", "alq-SW")
+treatment_order_color <- list("AB-0" = "#6a3d9a", 
+                        "A-0" = "#1f78b4", "A-3" = "#ff7f00", "A-3_14" = "#ff9f00",
+                        "B-0" = "#a6cee3", "B-3" = "#fdbf6f", "B-3_14" = "#ffdf6f",
+                        "AB-1" = "#33a02c", "BA-1" = "#b2df8a",
+                        "AB-3" = "#e31a1c", "BA-3" = "#fb9a99",
+                        "0-3" = "#cab2d6",
+                        "alq-A" = "#ff7f00", "alq-AB" = "#6a3d9a", "alq-B" = "#fdbf6f", 
+                        "alq-SW" = "#cab2d6"
+                        )
+# arranged such that they are in treatment order
+ID_order <- c("2-1", "2-13", "3-1", "3-13", "1-1",
+              "1-4", "2-4", "2-16", "3-4", "3-16",
+              "1-8", "2-8", "2-20", "3-8", "3-20",
+              "1-11", "1-23", "2-11", "2-23", "3-11",
+              "1-5", "2-5", "2-17", "3-5", "3-17", "1-9",
+              "2-9", "2-21", "3-9", "1-12", "1-24", "2-12",
+              "2-24", "3-12", "1-2", "2-2", "2-14",
+              "3-2", "3-14", "1-3", "2-3", "2-15", "3-3",
+              "3-15", "1-6", "2-6", "2-18", "3-6",
+              "3-18", "1-7", "2-7", "2-19", "3-7", "3-19",
+              "1-10", "2-10", "2-22", "3-10", "3-21",
+              "3-22", "1-13", "1-14", "1-15", "1-19",
+              "1-16","1-17", "1-18", "1-20", "1-21", "1-22"
+              )
+system("mkdir -p Figures")
+system("mkdir -p RDS")
+system("mkdir -p 03_Dada2Preprocessed")
+```
+
+# Introduction
+
+PCR amplicons were pooled as described in other directories in the project directory (`/nas/FAC/FBM/DMF/pengel/spirit/D2c/aprasad/20220921_aprasad_PriorityEffectsExperimentPilot/03_PilotExperiment/`). Sequencing was done at the GTF, PacBio CCS. Below is a summary of the qPCR values.
+
+## qPCR analysis summary
+
+```{r qPCR_values_plot}
+ggplot() +
+  geom_point(data = combined_df,
+             aes(y = factor(ID, ID_order),
+                 x = bac_copies_norm,
+                 color = factor(Treatment, treatment_order),
+                 shape = Sample_type
+         ), size = 3, stat = "identity"
+         ) +
+  labs(y = "Sample ID", x = "Bacterial copynumber (Normalized)", color = "Treatment") +
+  scale_color_manual(values=treatment_order_color) +
+    scale_x_continuous(trans = "log10", labels = function(x) parse(text=paste("10^",round(log10(x), 2)))) +
+    # scale_y_log10(minor_breaks = unique(as.numeric(1:10 %o% 10 ^ (0:3)))) +
+    geom_hline(yintercept = LOD) +
+    make_theme(setCol = F, setFill = F, palettecolor = "Pastel1",
+               axis_x_title = 18,
+               axis_y_title = 18, guide_nrow = 3,
+               y_size = 10,
+               x_size = 18)
+ggsave("Figures/qPCR_copy_numbers.pdf")
+```
+
+The samples were pooled in the library based on the intensity of the bands of the respective samples after PCR. The sequencing yields are plotted below.
+
+```{r}
+raw_reads_renamed_path <- "01_ReadsRenamed/"
+raw_reads_renamed <- as.character(lapply(ID_order, function(x) get_reads_path(x)))
+# read_counts_df <- data.frame("ID" = ID_order) %>%
+#                     mutate(raw_reads_path = Vectorize(get_reads_path)(ID)) %>%
+#                     mutate(raw_reads = Vectorize(get_number_of_reads)(raw_reads_path)) %>%
+#                     select(!raw_reads_path)
+# saveRDS(read_counts_df, "RDS/read_counts_df_raw.RDS")
+read_counts_df <- readRDS("RDS/read_counts_df_raw.RDS")
+df_volume_reads <- df_meta_pilot %>%
+                    filter(ID %in% ID_order) %>%
+                      select(ID, Volume) %>%
+                        left_join(read_counts_df)
+ggplot() +
+  geom_bar(data = df_volume_reads,
+             aes(y = factor(ID, ID_order),
+                 x = raw_reads,
+                 fill = factor(Volume, c(5, 10, 15))
+         ), stat = "identity"
+         ) +
+  labs(y = "Sample ID", x = "Number of reads", fill = "Volume added (uL)    ") +
+    scale_x_continuous(trans = "log10", labels = function(x) parse(text=paste("10^",round(log10(x), 2)))) +
+    make_theme(setCol = F, setFill = T, palettecolor = "Pastel1",
+               axis_x_title = 18,
+               axis_y_title = 18, guide_nrow = 1,
+               y_size = 10,
+               x_size = 18)
+ggsave("Figures/Number_of_reads_by_volume.pdf")
+```
+
+# Preprocessing reads
+
+## Remove primers and reorient reads
+
+First, primers must be removed and files re-oriented. The sequences of the primers can be found https://www.pacb.com/wp-content/uploads/Procedure-checklist-Amplification-of-bacterial-full-length-16S-rRNA-gene-with-barcoded-primers.pdf 
+These will have the phrase `_primers_removed` and will be placed in the folder `03_Dada2Preprocessed`
+barcodes may have already been removed upon demultiplexing so use just the part of the primer after the barcode.
+
+```{r}
+primer_remove_in_files = as.character(lapply(ID_order, function(x) paste0("01_ReadsRenamed/", x, "_reads.fastq.gz") ))
+primer_remove_out_files = as.character(lapply(ID_order, function(x) paste0("03_Dada2Preprocessed/", x, "_primers_removed.fastq.gz")))
+f_primer <- "AGRGTTYGATYMTGGCTCAG"
+r_primer <- "RGYTACCTTGTTACGACTT"
+r_primer_comp <- rc(r_primer)
+primer_removal_summary <- removePrimers(primer_remove_in_files, primer_remove_out_files,
+              primer.fwd = f_primer,
+              primer.rev = r_primer_comp,
+              verbose = TRUE)
+saveRDS(primer_removal_summary, "RDS/primer_removal_summary.rds")
+primer_removal_summary <- readRDS("RDS/primer_removal_summary.rds")
+```
+
+## Filter reads based on length
+
+### Read length distribution before
+
+The adapters but not primers appear to have been removed upon CCS analysis and demultiplexing.
+The step to get read lengths takes a long time so save the output and reload for next time.
+
+```{r}
+# read_lengths <- lapply(raw_reads_renamed, function(x) nchar(getSequences(x)))
+# saveRDS(read_lengths, "RDS/read_lengths.rds")
+read_lengths <- readRDS("RDS/read_lengths.rds")
+pdf("Figures/Read_length_histogram.pdf")
+hist(do.call(c, read_lengths), 100)
+dev.off()
+hist(do.call(c, read_lengths), 100)
+```
+
+### Filtering by length
+
+We expect and amplicon size in the range of 1500. So make a cut-off of 1000 minimum and 1600 maximum.
+This has already bee performed and will not be repeated when knitting.
+
+```{r}
+filt_read_files <- as.character(lapply(ID_order, function(x) paste0("03_Dada2Preprocessed/", x, "_filt_reads.fastq.gz")))
+# trimming_summary <- filterAndTrim(primer_remove_out_files, filt_read_files, minLen=1000, maxLen=1600, rm.phix=FALSE, multithread=T)
+# saveRDS(trimming_summary, "RDS/trimming_summary.rds")
+trimming_summary <- readRDS("RDS/trimming_summary.rds")
+```
+
+### Read length distribution after
+
+```{r}
+# read_lengths_filt <- lapply(filt_read_files, function(x) nchar(getSequences(x)))
+# saveRDS(read_lengths_filt, "RDS/read_lengths_filt.rds")
+read_lengths_filt <- readRDS("RDS/read_lengths_filt.rds")
+pdf("Figures/Read_length_filtered_histogram.pdf")
+hist(do.call(c, read_lengths_filt), 100)
+dev.off()
+hist(do.call(c, read_lengths_filt), 100)
+```
+
+## Dada2 quality plots
+
+```{r}
+plotQualityProfile(filt_read_files[1:5])
+```
+
+## Dereplicate and learn errors
+
+```{r}
+# derepd <- derepFastq(filt_read_files, verbose = T)
+# errors <- learnErrors(derepd, errorEstimationFunction=PacBioErrfun, BAND_SIZE=32, multithread=TRUE)
+# saveRDS(errors, "RDS/errors.rds")
+errors <- readRDS("RDS/errors.rds")
+plotErrors(errors)
+# dada2 <- dada(derepd, err=errors, BAND_SIZE=32, multithread=T)
+# saveRDS(dada2, "RDS/dada2.rds")
+dada2 <- readRDS("RDS/dada2.rds")
+seqtable <- makeSequenceTable(dada2); dim(seqtable)
+seqtable_nochim <- removeBimeraDenovo(seqtable, method = "consensus", multithread = TRUE, verbose = TRUE); dim(seqtable)
+sum(seqtable_nochim)/sum(seqtable)
+```
+
+## Summarise pre-processing
+
+```{r}
+df_summary <- primer_removal_summary %>% as.data.frame() %>%
+                mutate(ID = Vectorize(remove_extension)(rownames(.), "_reads.fastq.gz")) %>%
+                   pivot_longer(!ID, values_to = "reads", names_to = "type") %>%
+                    mutate(type = ifelse(type == "reads.in", "0_Raw.reads", "1_Primer.removed")) %>%
+                      left_join(df_meta_pilot, by = c("ID" = "ID"))
+df_summary_trimming <- trimming_summary %>% as.data.frame %>% 
+                                  mutate(ID = Vectorize(remove_extension)(rownames(.), "_primers_removed.fastq.gz")) %>%
+                                  pivot_longer(!ID, values_to = "reads", names_to = "type") %>%
+                                  mutate(type = ifelse(type == "reads.in", "Trimming.in", "2_Trimmed")) %>%
+                                  left_join(df_meta_pilot, by = c("ID" = "ID")) %>%
+                                  filter(type != "Trimming.in")
+dada_denoise_summary <- data.frame("V1" = sapply(dada2, function(x) sum(getUniques(x))) %>% as.matrix) %>%
+                          mutate("4_Denoised" = V1) %>% select(!V1) %>%
+                          cbind("5_No.chimera" = rowSums(seqtable_nochim)) %>%
+                          mutate(ID = Vectorize(remove_extension)(rownames(.), "_filt_reads.fastq.gz")) %>%
+                            pivot_longer(!ID, values_to = "reads", names_to = "type")
+df_summary <- bind_rows(rbind(df_summary, df_summary_trimming), dada_denoise_summary) %>%
+                select(ID, type, reads) %>%
+                left_join(df_meta_pilot %>% select(ID, Treatment)) %>%
+                mutate(Treatment_type = ifelse(grepl("alq", Treatment), "aliquot", Treatment))
+
+ggplot() +
+  geom_bar(data = df_summary,
+           aes(y = factor(ID, ID_order),
+               x = reads,
+               fill = type,
+               group = type
+           ), color = "black",
+           stat = "identity", position = "dodge"
+  ) +
+  facet_wrap(~ Treatment, scale = "free_y") +
+  scale_x_continuous(labels=unit_format(unit = "K", scale = 1e-3)) +
+  labs(x = "Number of reads", y = "Sample", fill = "Preprocessing step    ") +
+    make_theme(setFill = T, setCol = F, x_angle = 30)
+ggsave("Figures/summary_of_preprocessing.pdf")
+
+ggplot() +
+  geom_bar(data = df_summary,
+           aes(y = factor(ID, ID_order),
+               x = reads,
+               fill = type,
+               group = type
+           ), color = "black",
+           stat = "identity", position = "dodge"
+  ) +
+  facet_wrap(~ Treatment, scale = "free") +
+  scale_x_continuous(labels=unit_format(unit = "K", scale = 1e-3)) +
+  labs(x = "Number of reads", y = "Sample", fill = "Preprocessing step    ") +
+    make_theme(setFill = T, setCol = F, x_angle = 30)
+ggsave("Figures/summary_of_preprocessing_free.pdf")
+```

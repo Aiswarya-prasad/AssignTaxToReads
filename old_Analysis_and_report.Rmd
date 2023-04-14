@@ -1,0 +1,1234 @@
+---
+title: "PacBio 16S Amplicon sequencing analysis"
+author: Aiswarya Prasad
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  prettydoc::html_pretty:
+    theme: cayman
+    <!-- other fun themes: architect leonids hpstr cayman -->
+    highlight: github
+    math: katex
+    number_sections: true
+    df_print: paged
+    cold-folding: hide
+    toc: true
+---
+
+# Setup
+
+```{r setup}
+library(tidyverse)
+library(ggplot2)
+library(readxl)
+library(viridis)
+library(hrbrthemes)
+library(ggthemes)
+library(RColorBrewer)
+library(scales)
+library(dplyr)
+library(vegan)
+library(ape)
+library(ComplexHeatmap)
+library(ggnewscale)
+library(ggsignif)
+library(plotly)
+library(htmlwidgets)
+library(dada2)
+library(phyloseq)
+library(DECIPHER)
+
+# prefix_dir <- "/home/aiswarya/mnt/nas_recherche/" # for lab workstation
+# prefix_dir <- "/nas/FAC/FBM/DMF/pengel/" # for curnagl
+# working_dir <- paste0(prefix_dir, "spirit/D2c/aprasad/20220921_aprasad_PriorityEffectsExperimentPilot/03_PilotExperiment/07_PacBIO_sequencing")
+working_dir <- paste0("/scratch/aprasad/2023-pacbio_sequence_analysis")
+setwd(working_dir)
+
+source("/nas/FAC/FBM/DMF/pengel/spirit/D2c/aprasad/20220921_aprasad_PriorityEffectsExperimentPilot/03_PilotExperiment/05_qPCRs/qPCR_parse.R") # set prefix directory as needed within the scripts
+
+make_theme <- function(theme_name=theme_classic() ,max_colors=0, palettefill="Pastel1", palettecolor="Dark2", modify_guide = T,
+                        setFill=TRUE, setCol=TRUE,
+                        guide_nrow=2, guide_nrow_byrow=TRUE, leg_pos="top", leg_size=12,
+                        axis_x_title = 12, axis_y_title = 12,
+                        x_angle=0 ,x_vj=0, x_hj=0, x_size=12,
+                        y_angle=0 ,y_vj=0, y_hj=0, y_size=12){
+  n_11 = c("BrBG", "PiYG", "PRGn", "PuOr", "RdBu", "RdGy", "RdYlBu", "RdYlGn", "Spectral")
+  n_12 = c("Paired", "Set3")
+  n_8 = c("Accent", "Dark2", "Pastel2", "Set2")
+  if (palettefill %in% n_12) {
+    n_f = 12
+  } else {
+    if (palettefill %in% n_11) {
+      n_f = 11
+    } else {
+      if (palettefill %in% n_8) {
+        n_f  = 8
+      } else {
+        n_f = 9
+      }
+    }
+  }
+  if (palettecolor %in% n_12) {
+    n_c = 12
+  } else {
+    if (palettecolor %in% n_11) {
+      n_c = 11
+    } else {
+      if (palettecolor %in% n_8) {
+        n_c  = 8
+      } else {
+        n_c = 9
+      }
+    }
+  }
+  getFill = colorRampPalette(brewer.pal(n_f, palettefill))
+  getColor = colorRampPalette(brewer.pal(n_c, palettecolor))
+  theme_params <- theme(axis.text.x = element_text(angle = x_angle,
+    vjust = x_vj, hjust=x_hj,
+    size = x_size),
+    axis.text.y = element_text(angle = y_angle,
+      vjust = y_vj, hjust=y_hj,
+      size = y_size),
+      axis.title.x = element_text(size=axis_x_title),
+      axis.title.y = element_text(size=axis_y_title),
+      legend.position=leg_pos,
+      legend.text = element_text(size=leg_size)
+    )
+  if (modify_guide == T) {
+    guide_params <- guides(fill = guide_legend(
+                                    nrow=guide_nrow,
+                                    byrow=guide_nrow_byrow
+                                  ),
+                          col = guide_legend(
+                                    nrow=guide_nrow,
+                                    byrow=guide_nrow_byrow
+                                  )
+                    )
+  my_theme <- list(
+                theme_name,
+                theme_params,
+                guide_params
+              )
+  } else {
+    my_theme <- list(
+                  theme_name,
+                  theme_params
+                )
+  }
+  if(setFill) {
+    if (n_f < max_colors) {
+      my_theme <- list(
+                    my_theme,
+                    scale_fill_manual(values = getFill(max_colors), na.value="grey")
+                  )
+    } else {
+      my_theme <- list(
+                    my_theme,
+                    scale_fill_brewer(palette=palettefill, na.value="grey")
+                  )
+    }
+  }
+  if(setCol) {
+    if (n_c < max_colors) {
+      my_theme <- list(
+                    my_theme,
+                    scale_color_manual(values = getColor(max_colors), na.value="grey")
+                  )
+    } else {
+      my_theme <- list(
+                    my_theme,
+                    scale_color_brewer(palette=palettecolor, na.value="grey")
+                  )
+    }
+  }
+  return(my_theme)
+}
+
+remove_extension <- function(x, extension) {
+  strsplit(x, extension)[[1]][[1]]
+}
+
+metadata_path <- "../06_PCR_PacBio/PCR_plan.xlsx"
+df_meta_pilot <- read_excel(metadata_path, sheet = 1)
+# write.csv(df_meta, file = "230313_metadata.csv", append = F, quote = F, row.names = F)
+treatment_order <- c("AB-0", "A-0", "A-3", "A-3_14", "B-0", "B-3", "B-3_14", "AB-1", "BA-1", "AB-3", "BA-3", "0-3", "alq-A", "alq-AB", "alq-B", "alq-SW")
+treatment_order_color <- list("AB-0" = "#6a3d9a", 
+                        "A-0" = "#1f78b4", "A-3" = "#ff7f00", "A-3_14" = "#ff9f00",
+                        "B-0" = "#a6cee3", "B-3" = "#fdbf6f", "B-3_14" = "#ffdf6f",
+                        "AB-1" = "#33a02c", "BA-1" = "#b2df8a",
+                        "AB-3" = "#e31a1c", "BA-3" = "#fb9a99",
+                        "0-3" = "#cab2d6",
+                        "alq-A" = "#ff7f00", "alq-AB" = "#6a3d9a", "alq-B" = "#fdbf6f", 
+                        "alq-SW" = "#cab2d6"
+                        )
+# arranged such that they are in treatment order (in excel)
+ID_order <- c("2-1", "2-13", "3-1", "3-13", "1-1",
+              "1-4", "2-4", "2-16", "3-4", "3-16",
+              "1-8", "2-8", "2-20", "3-8", "3-20",
+              "1-11", "1-23", "2-11", "2-23", "3-11",
+              "1-5", "2-5", "2-17", "3-5", "3-17", "1-9",
+              "2-9", "2-21", "3-9", "1-12", "1-24", "2-12",
+              "2-24", "3-12", "1-2", "2-2", "2-14",
+              "3-2", "3-14", "1-3", "2-3", "2-15", "3-3",
+              "3-15", "1-6", "2-6", "2-18", "3-6",
+              "3-18", "1-7", "2-7", "2-19", "3-7", "3-19",
+              "1-10", "2-10", "2-22", "3-10", "3-21",
+              "3-22", "1-13", "1-14", "1-15", "1-19",
+              "1-16","1-17", "1-18", "1-20", "1-21", "1-22"
+              )
+ID_order_ext <- c("2-1", "2-13", "3-1", "3-13", "1-1",
+              "1-4", "2-4", "2-16", "3-4", "3-16",
+              "1-8", "2-8", "2-20", "3-8", "3-20",
+              "1-11", "1-23", "2-11", "2-23", "3-11",
+              "1-5", "2-5", "2-17", "3-5", "3-17", "1-9",
+              "2-9", "2-21", "3-9", "1-12", "1-24", "2-12",
+              "2-24", "3-12", "1-2", "2-2", "2-14",
+              "3-2", "3-14", "1-3", "2-3", "2-15", "3-3",
+              "3-15", "1-6", "2-6", "2-18", "3-6",
+              "3-18", "1-7", "2-7", "2-19", "3-7", "3-19",
+              "1-10", "2-10", "2-22", "3-10", "3-21",
+              "3-22", "1-13", "1-14", "1-15", "1-19",
+              "1-16","1-17", "1-18", "1-20", "1-21", "1-22",
+              "M6-5", "C8-2", "D7-4", "F4-3", "A4-3",
+              "SC", "NC2-1", "NC2SC", "LW-1"
+              )
+# samples_MY <- c("M", "C", "D", "F", "A")
+```
+
+# Introduction
+
+PCR amplicons were pooled as described in other directories in the project directory. Sequencing was done at the GTF, PacBio CCS.
+
+## qPCR analysis import
+
+```{r qPCR_values_plot}
+ggplot() +
+  geom_point(data = combined_df,
+             aes(y = factor(ID, ID_order),
+                 x = bac_copies_norm,
+                 color = factor(Treatment, treatment_order),
+                 shape = Sample_type
+         ), size = 3, stat = "identity"
+         ) +
+  labs(y = "Sample ID", x = "Bacterial copynumber (Normalized)", color = "Treatment") +
+  scale_color_manual(values=treatment_order_color) +
+    scale_x_continuous(trans = "log10", labels = function(x) parse(text=paste("10^",round(log10(x), 2)))) +
+    # scale_y_log10(minor_breaks = unique(as.numeric(1:10 %o% 10 ^ (0:3)))) +
+    geom_hline(yintercept = LOD) +
+    make_theme(setCol = F, setFill = F, palettecolor = "Pastel1",
+               axis_x_title = 18,
+               axis_y_title = 18, guide_nrow = 3,
+               y_size = 10,
+               x_size = 18)
+ggsave("Figures/qPCR_copy_numbers.pdf")
+```
+
+## Number of reads obtained from sequencing
+
+```{r 1}
+# get number of reads from summary files
+df_assigned_reads_raw <- data.frame()
+for (file in list.files("04_assign_reads_to_strain")) {
+  if (grepl("summary", file)) {
+    sample = strsplit(file, "_summary")[[1]][[1]]
+    lines = readLines(paste0("04_assign_reads_to_strain/", file), n = 10)
+    for (line in lines) {
+      if (grepl("total_reads", line)) {
+        total_reads = strsplit(line, "=")[[1]][[2]]
+      }
+      if (grepl("unknown", line)) {
+        unknown = strsplit(line, "=")[[1]][[2]]
+      }
+      if (grepl("assigned_unambiguous", line)) {
+        assigned_unambiguous = strsplit(line, "=")[[1]][[2]]
+      }
+      if (grepl("assigned_ambiguous", line)) {
+        assigned_ambiguous = strsplit(line, "=")[[1]][[2]]
+      }
+      if (grepl("within", line)) {
+        within_range = strsplit(line, "=")[[1]][[2]]
+      }
+      if (grepl("shorter", line)) {
+        shorter = strsplit(line, "=")[[1]][[2]]
+      }
+      if (grepl("longer", line)) {
+        longer = strsplit(line, "=")[[1]][[2]]
+      }
+    }
+    vector_to_add <- c(sample, total_reads, unknown, assigned_unambiguous, assigned_ambiguous, within_range, shorter, longer)
+    df_assigned_reads_raw <- rbind(df_assigned_reads_raw, vector_to_add)
+  }
+}
+colnames(df_assigned_reads_raw) <- c("sample", "total_reads", "unknown", "assigned_unambiguous", "assigned_ambiguous", "within_range", "shorter", "longer")
+df_assigned_reads <- df_assigned_reads_raw %>%
+                      mutate_at(vars(!contains("sample")), as.numeric) %>%
+                      left_join(df_meta, by = c("sample" = "ID"))
+
+ggplot() +
+  geom_bar(data = df_assigned_reads,
+           aes(y = factor(sample, ID_order),
+               x = total_reads,
+               fill = factor(Treatment, treatment_order)
+           ), stat = "identity"
+  ) +
+  labs(x = "Number of raw reads", y = "Sample", fill = "Treatment") +
+    scale_fill_manual(values=treatment_order_color) +
+    scale_x_continuous(labels=unit_format(unit = "K", scale = 1e-3)) +
+    make_theme(setFill = F, setCol = F)
+    ggsave("Figures/Number_of_reads_by_treatment.pdf")
+```
+
+
+```{r 2}
+df_assigned_reads_plot <- df_assigned_reads %>%
+                            select(sample, Treatment, unknown, assigned_unambiguous, assigned_ambiguous) %>%
+                            pivot_longer(!c(sample, Treatment), names_to = "Type", values_to = "Count")
+df_assigned_reads_lengths <- df_assigned_reads %>%
+                            select(sample, Treatment, shorter, within_range, longer) %>%
+                            pivot_longer(!c(sample, Treatment), names_to = "Type", values_to = "Count")
+
+ggplot() +
+  geom_point(data = df_assigned_reads_plot,
+           aes(x = -500,
+               y = factor(sample, ID_order),
+               color = Treatment,
+               size = 3
+           ), 
+           position = "stack", stat = "identity"
+  ) +
+  geom_bar(data = df_assigned_reads_plot,
+           aes(y = sample,
+               x = Count,
+               fill = Type
+           ), stat = "identity"
+  ) +
+  # geom_vline(xintercept = 3000) +
+  labs(x = "Number of raw reads", y = "Sample", fill = "Type") +
+    scale_color_manual(values=treatment_order_color) +
+    scale_x_continuous(labels=unit_format(unit = "K", scale = 1e-3)) +
+    make_theme(setFill = T, setCol = F, guide_nrow = 3)
+    ggsave("Figures/Number_of_reads_by_type.pdf")
+
+ggplot() +
+  geom_point(data = df_assigned_reads_lengths,
+           aes(x = -500,
+               y = factor(sample, ID_order),
+               color = Treatment,
+               size = 3
+           ), 
+           position = "stack", stat = "identity"
+  ) +
+  geom_bar(data = df_assigned_reads_lengths,
+           aes(y = sample,
+               x = Count,
+               fill = Type
+           ), stat = "identity"
+  ) +
+  # geom_vline(xintercept = 3000) +
+  labs(x = "Number of raw reads", y = "Sample", fill = "Type") +
+    scale_color_manual(values=treatment_order_color) +
+    scale_x_continuous(labels=unit_format(unit = "K", scale = 1e-3)) +
+    make_theme(setFill = T, setCol = F, guide_nrow = 3)
+    ggsave("Figures/Number_of_reads_by_type_lengths.pdf")
+
+ggplot() +
+  geom_point(data = df_assigned_reads_plot %>%
+                      group_by(sample) %>%
+                      mutate(Percentage = Count/sum(Count)*100),
+           aes(x = -0.5,
+               y = factor(sample, ID_order),
+               color = Treatment,
+               size = 3
+           ), 
+           position = "stack", stat = "identity"
+  ) +
+  geom_bar(data = df_assigned_reads_plot %>%
+                      group_by(sample) %>%
+                      mutate(Percentage = Count/sum(Count)*100),
+           aes(y = sample,
+               x = Percentage,
+               fill = Type
+           ), stat = "identity"
+  ) +
+  # geom_vline(xintercept = 3000) +
+  labs(x = "Number of raw reads", y = "Sample", fill = "Type") +
+    scale_color_manual(values=treatment_order_color) +
+    scale_x_continuous(labels=unit_format(unit = "K", scale = 1e-3)) +
+    make_theme(setFill = T, setCol = F, guide_nrow = 3)
+    ggsave("Figures/Number_of_reads_by_type_percent.pdf")
+```
+
+# Assigning ASVs to strains
+
+This section is done by python scripts found in the `scripts` directory. 
+
+The strains used in the pilot are,
+```{r}
+df_strains <- read_excel("../../03_PilotExperiment/02_CalculateDilutionsOD.xlsx", sheet = 2)
+genome_names <- c(df_strains$pair_a, df_strains$pair_b) %>% as.data.frame %>%
+                  filter(startsWith(., "ESL")) %>%
+                    pull
+df_strains_info <- data.frame("Genome" = genome_names)
+cbind(df_strains_info, 
+      "Num_16S_copies" = c("ESL0825", "ESL0822", "ESL0824", "ESL0827", "ESL0200", "ESL0197", "ESL0295", "ESL0185", "ESL0183", "ESL0184", "ESL0186", "ESL0820", "ESL0170", "ESL0198", "ESL0199", "ESL0819", "ESL0394", "ESL0263", "ESL0262", "ESL0350", "ESL0261"),
+      "Type" = c("ESL0825", "ESL0822", "ESL0824", "ESL0827", "ESL0200", "ESL0197", "ESL0295", "ESL0185", "ESL0183", "ESL0184", "ESL0186", "ESL0820", "ESL0170", "ESL0198", "ESL0199", "ESL0819", "ESL0394", "ESL0263", "ESL0262", "ESL0350", "ESL0261")
+      )
+```
+
+This information is used (hard coded) to subset strains of interest inside the script `scripts/identify_unique_position_set.py`
+
+Next a set of positions (currently 149) which can alone distinguish the different strains are made into a dictionary along with the base at those positions
+for each of the strains. The dictionary is pickled by the script `scripts/identify_unique_position_set.py` and then used by the script `scripts/assign_reads_to_strains.py`
+to assign the reads to the respective 16S copy of each strain and count them.
+
+True count of ESL0183 will be mean of copies 1 - 3 and the true count of ESL0262 will be count - count of ESL0183 because ESL0183-4 and ESL0262 are identical,
+but all the other copies of ESL0183 are different from ESL0262. The #counts of ESL0183 can be determined based on the other copies and 
+subtracted from the counts of the sequence of ESL0183-4 (same as ESL0262) to get the counts of ESL0262. 
+
+For a strain with n identical copies, each ASV will match both meaning that the counts of the strain is counts of the ASV/n
+For a strain with n non-identical copies, each ASV corresponding to a copy will have the same counts as the strain
+For ESL0183, copy number 4 will have more counts than the others. The counts of ESL262 will be counts of the shared ASVs - counts of ASVs corresponsing to the other copies of ESL0183
+
+Information about which strains have how many copies can be found in `database/PilotStrainsInformation.xlsx`
+
+Summarised here:
+
+Genome				Num_copies	Type_copies	Community
+ESL0825				1						1						a
+ESL0822				1						1						a
+ESL0824				2						1,1					a
+ESL0827				1						1						a
+ESL0200				2						1,1					a
+ESL0197				2						1,1					both
+ESL0295				1						1						a
+ESL0185				4						1,1,1,1			a
+ESL0183				4						1,2,3,4			a
+ESL0184				4						1,2,3,4			a
+ESL0186				4						1,2,1,2			a
+ESL0820				2						1,1					b
+ESL0170				2						1,1					b
+ESL0198				1						1						b
+ESL0199				2						1,1					b
+ESL0819				2						1,1					b
+ESL0394				1						1						b
+ESL0263				1						1						b
+ESL0262				1						1						b
+ESL0350				1						1						b
+ESL0261				1						1						b
+
+Those with non-identical copies should have the same 
+
+This will be used here to parse the output of `assign_reads_to_strains.py` which can be found in `04_assign_reads_to_strain/strain_counts_raw.csv`.
+
+
+```{r}
+# This takes a ling time so make sure to check properly before running it
+# system("python3 scripts/assign_reads_to_strains.py --database_path \"database/16S_sequences/\" \\
+#                                            --sample_names \"2-1\" \"2-13\" \"3-1\" \"3-13\" \"1-1\" \\
+#                                                           \"1-4\" \"2-4\" \"2-16\" \"3-4\" \"3-16\" \\
+#                                                           \"1-8\" \"2-8\" \"2-20\" \"3-8\" \"3-20\" \\
+#                                                           \"1-11\" \"1-23\" \"2-11\" \"2-23\" \"3-11\" \\
+#                                                           \"1-5\" \"2-5\" \"2-17\" \"3-5\" \"3-17\" \"1-9\" \\
+#                                                           \"2-9\" \"2-21\" \"3-9\" \"1-12\" \"1-24\" \"2-12\" \\
+#                                                           \"2-24\" \"3-12\" \"1-2\" \"2-2\" \"2-14\" \\
+#                                                           \"3-2\" \"3-14\" \"1-3\" \"2-3\" \"2-15\" \"3-3\" \\
+#                                                           \"3-15\" \"1-6\" \"2-6\" \"2-18\" \"3-6\" \\
+#                                                           \"3-18\" \"1-7\" \"2-7\" \"2-19\" \"3-7\" \"3-19\" \\
+#                                                           \"1-10\" \"2-10\" \"2-22\" \"3-10\" \"3-21\" \\
+#                                                           \"3-22\" \"1-13\" \"1-14\" \"1-15\" \"1-19\" \\
+#                                                           \"1-16\" \"1-17\" \"1-18\" \"1-20\" \"1-21\" \"1-22\" \\
+#                                            --suffix \"_reads.fastq.gz\" \\
+#                                            --input_dir \"01_ReadsRenamed\" \\
+#                                            --output_path \"04_assign_reads_to_strain\"")
+identical_copies <- c("ESL0824", "ESL0200", "ESL0197", "ESL0820", "ESL0170", "ESL0199", "ESL0819","ESL0185", "ESL0186")
+non_identical_copies <- c("ESL0183", "ESL0184")
+single_copies <- c("ESL0825", "ESL0822", "ESL0827", "ESL0295", "ESL0198", "ESL0394", "ESL0263", "ESL0262", "ESL0350", "ESL0261")
+community_ab <- c("ESL0197")
+community_a <- c("ESL0825","ESL0822","ESL0824","ESL0827","ESL0200","ESL0295","ESL0185","ESL0183","ESL0184","ESL0186")
+community_b <- c("ESL0820", "ESL0170", "ESL0198", "ESL0199", "ESL0819", "ESL0394", "ESL0263", "ESL0262", "ESL0350", "ESL0261")
+get_strain_from_id <- function(x) {
+  #  x is in the format ESL0394.1_firm4_1
+  if (x == "unknown" || x == "Unknown") {
+    return(x)
+  }
+  strsplit(x, "-", fixed = T)[[1]][[1]]
+}
+get_sdp_from_id <- function(x) {
+  #  x is in the format x="ESL0394.1_firm4_1"
+  if (x == "unknown" || x == "Unknown") {
+    return(NA)
+  }
+  paste0(c(strsplit(x, "_")[[1]][[2]],
+         strsplit(x, "_")[[1]][[3]]),
+         collapse = "_"
+  )
+}
+get_sdp_from_strain <- function(x) {
+  #  x is in the format x="ESL0394.1_firm4_1"
+  if (x == "unknown" || x == "Unknown") {
+    return(NA)
+  }  
+  SDP <- df_strain_counts_raw %>%
+          colnames %>%
+          as.data.frame() %>%
+          filter(grepl(x, .)) %>%
+          head(1) %>%
+          pull %>%
+          get_sdp_from_id
+  return(SDP)
+}
+
+df_strain_counts_raw <- data.frame()
+for (file in list.files("04_assign_reads_to_strain")) {
+  if (grepl("_strain_counts.csv", file)) {
+    sample = strsplit(file, "_strain_counts")[[1]][[1]]
+    df_strain_counts_raw_read <- read.table(paste0("04_assign_reads_to_strain/", file), row.names = NULL, sep = ",") %>%
+                          select(V2, V3)
+    df_strain_counts_raw <- rbind(df_strain_counts_raw, c(sample, df_strain_counts_raw_read[-1,]$V3))
+    colnames(df_strain_counts_raw) <- c("Sample", df_strain_counts_raw_read[-1,]$V2)
+  }
+}
+# df_strain_counts_raw <- read.csv("04_Dada2ResultTaxonomy/ASV_to_strain_name_counts.csv") %>%
+#                       select(!X)
+# colnames(df_strain_counts_raw)
+# df_strain_counts_raw$ESL0184.4_firm5_3
+# df_strain_counts_raw$ESL0184.3_firm5_3
+# df_strain_counts_raw$ESL0184.2_firm5_3
+# df_strain_counts_raw$ESL0184.1_firm5_3
+# df_strain_counts_raw$ESL0262.1_firm5_2
+# df_strain_counts_raw$ESL0170.1_bifido_1.3
+# df_strain_counts_raw$ESL0170.2_bifido_1.3
+# names(df_strain_counts_raw)
+df_strain_counts_raw_all <- df_strain_counts_raw %>%
+                            mutate_at(vars(contains("ESL")), as.numeric) %>%
+                            mutate(`unknown` = as.numeric(unknown)) %>%
+                              pivot_longer(!Sample, values_to = "Count", names_to = "Strain") %>%
+                              mutate(Community = ifelse(Vectorize(get_strain_from_id)(Strain) %in% community_a, "a", NA)) %>%
+                              mutate(Community = ifelse(Vectorize(get_strain_from_id)(Strain) %in% community_b, "b", Community)) %>%
+                              mutate(Community = ifelse(Vectorize(get_strain_from_id)(Strain) %in% community_ab, "ab", Community)) %>%
+                              left_join(df_meta_pilot, by = c("Sample" = "ID"))
+df_strain_counts <- df_strain_counts_raw %>%
+                      mutate_at(vars(contains("ESL")), as.numeric) %>%
+                      mutate(`ESL0825` = `ESL0825-1_bifido_1.1`) %>%
+                      mutate(`ESL0822` = `ESL0822-1_bifido_1.3`) %>%
+                      mutate(`ESL0824` = `ESL0824-1_bifido_1.4.1`/2) %>%
+                      mutate(`ESL0827` = `ESL0827-1_bifido_1.4.2`) %>%
+                      mutate(`ESL0200` = `ESL0200-1_bifido_1.5`/2) %>%
+                      mutate(`ESL0197` = `ESL0197-1_bifido_2`/2) %>%
+                      mutate(`ESL0295` = `ESL0295-1_firm4_1`) %>%
+                      mutate(`ESL0185` = `ESL0185-1_firm5_1`/4) %>%
+                      mutate(`ESL0183` = mean(c(`ESL0183-1_firm5_2`, `ESL0183-2_firm5_2`, `ESL0183-3_firm5_2`))) %>%
+                      mutate(`ESL0184` = mean(c(`ESL0184-1_firm5_3`, `ESL0184-2_firm5_3`, `ESL0184-3_firm5_3`, `ESL0184-4_firm5_3`))) %>%
+                      mutate(`ESL0186` = mean(c(`ESL0186-1_firm5_4`, `ESL0186-2_firm5_4`))/2) %>%
+                      mutate(`ESL0820` = `ESL0820-1_bifido_1.1`/2) %>%
+                      mutate(`ESL0170` = `ESL0170-1_bifido_1.3`/2) %>%
+                      mutate(`ESL0198` = `ESL0198-1_bifido_1.4.1`) %>%
+                      mutate(`ESL0199` = `ESL0198-1_bifido_1.4.1`/2) %>%
+                      mutate(`ESL0819` = `ESL0819-2_bifido_1.5`/2) %>%
+                      mutate(`ESL0394` = `ESL0394-1_firm4_1`) %>%
+                      mutate(`ESL0263` = `ESL0263-1_firm5_1`) %>%
+                      mutate(`ESL0262` = ifelse(`ESL0262-1_firm5_2` > `ESL0183`, `ESL0262-1_firm5_2`-`ESL0183`, `ESL0262-1_firm5_2`)) %>%
+                      mutate(`ESL0350` = `ESL0350-1_firm5_3`) %>%
+                      mutate(`ESL0261` = `ESL0261-1_firm5_4`) %>%
+                      mutate(`Unknown` = as.numeric(unknown)) %>%
+                      select(Sample, Unknown, all_of(genome_names)) %>%
+                      pivot_longer(!Sample, values_to = "Count", names_to = "Strain") %>%
+                      mutate(SDP = Vectorize(get_sdp_from_strain)(Strain)) %>%
+                      group_by(Sample, Strain) %>% 
+                      summarise(Sample, Strain, SDP, Count = sum(Count)) %>%
+                              mutate(Community = ifelse(Strain %in% community_a, "a", NA)) %>%
+                              mutate(Community = ifelse(Strain %in% community_b, "b", Community)) %>%
+                              mutate(Community = ifelse(Strain %in% community_ab, "ab", Community)) %>%
+                              left_join(df_meta_pilot, by = c("Sample" = "ID"))
+
+df_strain_counts_relative <- df_strain_counts %>%
+                              group_by(Sample) %>%
+                              mutate(Percentage = Count/sum(Count)*100)
+
+# df_strain_counts_raw %>% filter(Sample == "1-16")
+# df_assigned_reads_raw %>% filter(sample == "1-16")
+# df_strain_counts %>% filter(Sample == "1-16") %>% pull(Count)
+# df_strain_counts %>% filter(Sample == "1-16") %>% pull(Community)
+# df_strain_counts_raw_all %>% filter(Sample == "3-5") %>% select(Community, Strain, Count) %>% print(n = 60)
+# df_strain_counts %>% filter(Sample == "3-5") %>% select(Community, Strain, Count) %>% print(n = 60)
+
+ggplot() +
+  geom_point(data = df_strain_counts,
+           aes(x = -50,
+               y = factor(Sample, ID_order),
+               color = Treatment,
+               size = 3
+           ), 
+           position = "stack", stat = "identity"
+  ) +
+  geom_bar(data = df_strain_counts,
+           aes(x = Count,
+               y = factor(Sample, ID_order),
+               fill = SDP
+           ), 
+           position = "stack", stat = "identity"
+  ) +
+  # geom_vline(xintercept = 3000) +
+  labs(x = "Count", y = "Sample", fill = "SDP", color = "Treatment") +
+  scale_color_manual(values=treatment_order_color) +
+  make_theme(setCol = F, setFill = T, guide_nrow = 6, palettefill = "Spectral")
+  ggsave("Figures/Plot_sdp_per_sample.pdf")
+
+ggplot() +
+  geom_point(data = df_strain_counts %>% 
+                  filter(!is.na(Community)) %>% 
+                  group_by(Sample) %>%
+                  mutate(total_reads = sum(Count))
+           aes(x = -20,
+               y = factor(Sample, ID_order),
+               color = Treatment,
+               size = 3
+           ), 
+           position = "stack", stat = "identity"
+  ) +
+  scale_color_manual(values=treatment_order_color) +
+  new_scale_color() +
+  geom_bar(data = df_strain_counts %>% 
+                  filter(!is.na(Community)) %>% 
+                  group_by(Sample) %>%
+                  mutate(total_reads = sum(Count))
+           aes(x = Count,
+               y = factor(Sample, ID_order),
+               color = factor(Community, c("a", "b", "ab")),
+               fill = SDP
+           ),
+           position = "stack", stat = "identity"
+  ) +
+  labs(x = "Count", y = "Sample", fill = "SDP", color = "Treatment") +
+  scale_color_manual(values = c("#377eb8", "#e41a1c", "#984ea3"), labels = c("a", "b", "ab")) +
+  make_theme(setCol = F, setFill = T, guide_nrow = 6, palettefill = "Spectral")
+  ggsave("Figures/Plot_sdp_per_sample_assigned_community.pdf")
+
+ggplot() +
+  geom_point(data = df_strain_counts %>% 
+                  filter(!is.na(Community)) %>% 
+                  group_by(Sample) %>%
+                  mutate(total_reads = sum(Count)),
+           aes(x = -20,
+               y = factor(Sample, ID_order),
+               color = Treatment,
+               size = 3
+           ), 
+           position = "stack", stat = "identity"
+  ) +
+  scale_color_manual(values=treatment_order_color) +
+  new_scale_color() +
+  geom_bar(data = df_strain_counts %>% 
+                  filter(!is.na(Community)) %>% 
+                  group_by(Sample) %>%
+                  mutate(total_reads = sum(Count)),
+           aes(x = Count,
+               y = factor(Sample, ID_order),
+               fill = SDP
+           ),
+           position = "stack", stat = "identity"
+  ) +
+  labs(x = "Count", y = "Sample", fill = "SDP", color = "Treatment") +
+  make_theme(setCol = F, setFill = T, guide_nrow = 6, palettefill = "Spectral")
+  ggsave("Figures/Plot_sdp_per_sample_assigned.pdf")
+
+ggplot() +
+  geom_point(data = df_strain_counts,
+           aes(x = -50,
+               y = factor(Sample, ID_order),
+               color = Treatment,
+               size = 3
+           ), 
+           position = "stack", stat = "identity"
+  ) +
+  geom_bar(data = df_strain_counts,
+           aes(x = Count,
+               y = factor(Sample, ID_order),
+               fill = factor(Community, c("a", "b", "ab"))
+           ), 
+           position = "stack", stat = "identity"
+  ) +
+  # geom_vline(xintercept = 3000) +
+  labs(x = "Count", y = "Sample", fill = "Community", color = "Treatment") +
+  scale_fill_manual(values = c("#b3cde3", "#fbb4ae", "#decbe4"), labels = c("a", "b", "ab")) +
+  scale_color_manual(values=treatment_order_color) +
+  make_theme(setCol = F, setFill = F)
+  ggsave("Figures/Plot_community_per_sample.pdf")
+
+ggplot() +
+  geom_point(data = df_strain_counts %>% 
+                  filter(!is.na(Community)) %>% 
+                  group_by(Sample) %>%
+                  mutate(total_reads = sum(Count)),
+           aes(x = -20,
+               y = factor(Sample, ID_order),
+               color = Treatment,
+               size = 3
+           ), 
+           position = "stack", stat = "identity"
+  ) +
+  geom_bar(data = df_strain_counts %>% 
+                  filter(!is.na(Community)) %>% 
+                  group_by(Sample) %>%
+                  mutate(total_reads = sum(Count)),
+           aes(x = Count,
+               y = factor(Sample, ID_order),
+               fill = factor(Community, c("a", "b", "ab"))
+           ), 
+           position = "stack", stat = "identity"
+  ) +
+  labs(x = "Count", y = "Sample", fill = "Community", color = "Treatment") +
+  scale_fill_manual(values = c("#b3cde3", "#fbb4ae", "#decbe4"), labels = c("a", "b", "ab")) +
+  scale_color_manual(values=treatment_order_color) +
+  make_theme(setCol = F, setFill = F)
+  ggsave("Figures/Plot_community_per_sample_assigned.pdf")
+
+ggplot() +
+  geom_point(data = df_strain_counts %>% 
+                      # filter(!is.na(Community)) %>%
+                      group_by(Sample) %>%
+                      mutate(Percentage = Count/sum(Count)*100),
+           aes(x = -0.1,
+               y = factor(Sample, ID_order),
+               color = Treatment,
+               size = 3
+           ), 
+           position = "stack", stat = "identity"
+  ) +
+  geom_bar(data = df_strain_counts %>% 
+                      # filter(!is.na(Community)) %>%
+                      group_by(Sample) %>%
+                      mutate(Percentage = Count/sum(Count)*100),
+           aes(x = Percentage,
+               y = factor(Sample, ID_order),
+               fill = factor(Community, c("a", "b", "ab"))
+           ), 
+           position = "stack", stat = "identity"
+  ) +
+  labs(x = "Percentage", y = "Sample", fill = "Community") +
+  scale_fill_manual(values = c("#b3cde3", "#fbb4ae", "#decbe4"), labels = c("a", "b", "ab")) +
+  scale_color_manual(values=treatment_order_color) +
+  make_theme(setCol = F, setFill = F)
+  ggsave("Figures/Plot_community_per_sample_percentage.pdf")
+
+ggplot() +
+  geom_point(data = df_strain_counts %>% 
+                      filter(!is.na(Community)) %>%
+                      group_by(Sample) %>%
+                      mutate(Percentage = Count/sum(Count)*100),
+           aes(x = -0.1,
+               y = factor(Sample, ID_order),
+               color = Treatment,
+               size = 3
+           ), 
+           position = "stack", stat = "identity"
+  ) +
+  geom_bar(data = df_strain_counts %>% 
+                      filter(!is.na(Community)) %>%
+                      group_by(Sample) %>%
+                      mutate(Percentage = Count/sum(Count)*100),
+           aes(x = Percentage,
+               y = factor(Sample, ID_order),
+               fill = factor(Community, c("a", "b", "ab"))
+           ), 
+           position = "stack", stat = "identity"
+  ) +
+  scale_fill_manual(values = c("#b3cde3", "#fbb4ae", "#decbe4"), labels = c("a", "b", "ab")) +
+  scale_color_manual(values=treatment_order_color) +
+  labs(x = "Count", y = "Treatment", fill = "Community") +
+  make_theme(setCol = F, setFill = F, guide_nrow = 4)
+  ggsave("Figures/Plot_community_per_sample_assigned_percentage.pdf")
+
+ggplot() +
+  geom_bar(data = df_strain_counts %>% 
+                      group_by(Sample) %>%
+                      mutate(Percentage = Count/sum(Count)*100),
+           aes(x = Count,
+               y = factor(Treatment, treatment_order),
+               fill = factor(Community, c("a", "b", "ab"))
+           ), 
+           position = "stack", stat = "identity"
+  ) +
+  labs(x = "Count", y = "Treatment", fill = "Community") +
+  scale_fill_manual(values = c("#b3cde3", "#fbb4ae", "#decbe4"), labels = c("a", "b", "ab")) +
+  make_theme(setCol = F, setFill = F)
+  ggsave("Figures/Plot_community_per_treatment.pdf")
+
+ggplot() +
+  geom_bar(data = df_strain_counts %>% 
+                      filter(!is.na(Community)) %>%
+                      group_by(Sample) %>%
+                      mutate(Percentage = Count/sum(Count)*100),
+           aes(x = Count,
+               y = factor(Treatment, treatment_order),
+               fill = factor(Community, c("a", "b", "ab"))
+           ), 
+           position = "stack", stat = "identity"
+  ) +
+  labs(x = "Count", y = "Treatment", fill = "Community") +
+  scale_fill_manual(values = c("#b3cde3", "#fbb4ae", "#decbe4"), labels = c("a", "b", "ab")) +
+  make_theme(setCol = F, setFill = F)
+  ggsave("Figures/Plot_community_per_treatment_assigned.pdf")
+
+ggplot() +
+  geom_bar(data = df_strain_counts %>%
+                    group_by(Treatment, Strain) %>%
+                    mutate(Count = mean(Count)) %>%
+                    ungroup() %>%
+                    group_by(Treatment) %>%
+                    mutate(Percentage = Count/sum(Count)*100),
+           aes(x = Percentage,
+               y = factor(Treatment, treatment_order),
+               fill = factor(Community, c("a", "b", "ab"))
+           ), 
+           position = "stack", stat = "identity"
+  ) +
+  labs(x = "Count", y = "Treatment", fill = "Community") +
+  scale_fill_manual(values = c("#b3cde3", "#fbb4ae", "#decbe4"), labels = c("a", "b", "ab")) +
+  make_theme(setCol = F, setFill = F)
+  ggsave("Figures/Plot_community_per_treatment_percentage.pdf")
+
+ggplot() +
+  geom_bar(data = df_strain_counts %>%
+                    filter(!is.na(Community)) %>%
+                    group_by(Treatment, Strain) %>%
+                    mutate(Count = mean(Count)) %>%
+                    ungroup() %>%
+                    group_by(Treatment) %>%
+                    mutate(Percentage = Count/sum(Count)*100),
+           aes(x = Percentage,
+               y = factor(Treatment, treatment_order),
+               fill = factor(Community, c("a", "b", "ab"))
+           ), 
+           position = "stack", stat = "identity"
+  ) +
+  labs(x = "Count", y = "Treatment", fill = "Community") +
+  scale_fill_manual(values = c("#b3cde3", "#fbb4ae", "#decbe4"), labels = c("a", "b", "ab")) +
+  make_theme(setCol = F, setFill = F, guide_nrow = 1)
+  ggsave("Figures/Plot_community_per_treatment_assigned_percentage.pdf")
+```
+
+
+# Analysis on dada2
+
+This section is already completed and the results written to `04_Dada2ResultTaxonomy`
+Do not run again unless some section needs to be modified
+
+```{r dada2}
+read_files_path <- "01_ReadsRenamed/"
+get_reads_path <- function(ID) {
+  return(paste0(read_files_path, ID, "_reads.fastq.gz"))
+}
+unfiltered_read_files <- as.character(lapply(ID_order, function(x) get_reads_path(x)))
+```
+
+## Dada2 quality plots
+
+```{r}
+# plotQualityProfile(unfiltered_read_files[1:10])
+# plotQualityProfile(unfiltered_read_files[11:20])
+# plotQualityProfile(unfiltered_read_files[21:30])
+# plotQualityProfile(unfiltered_read_files[31:40])
+# plotQualityProfile(unfiltered_read_files[41:50])
+# plotQualityProfile(unfiltered_read_files[51:60])
+# plotQualityProfile(unfiltered_read_files[61:length(unfiltered_read_files)])
+```
+
+## Read length distribution
+
+The primers appear to have been removed upon CCS analysis and demultiplexing.
+The step to get read lengths takes a long time so save the output and reload for next time.
+
+```{r}
+# read_lengths <- lapply(unfiltered_read_files, function(x) nchar(getSequences(x)))
+# saveRDS(read_lengths, "RDS/read_lengths.rds")
+read_lengths <- readRDS("RDS/read_lengths.rds")
+pdf("Figures/Read_length_histogram.pdf")
+hist(do.call(c, read_lengths), 200)
+dev.off()
+```
+
+## Filtering by length
+
+We expect and amplicon size in the range of 1500. So make a cut-off of 1000 minimum and 1600 maximum.
+This has already bee performed and will not be repeated when knitting.
+```{r}
+system("mkdir -p 04_Dada2Filtered")
+# filt_read_files <- as.character(lapply(ID_order, function(x) paste0("04_Dada2Filtered/", x, "_filt_reads.fastq.gz")))
+# trimming_summary <- filterAndTrim(unfiltered_read_files, filt_read_files, minLen=1000, maxLen=1600, rm.phix=FALSE, multithread=T)
+# saveRDS(trimming_summary, "RDS/trimming_summary.rds")
+trimming_summary <- readRDS("RDS/trimming_summary.rds")
+
+df_trimmed_summary <- df_reads %>%
+                      left_join(trimming_summary %>% as.data.frame %>% 
+                                  mutate(ID = Vectorize(remove_extension)(rownames(.), "_reads.fastq.gz")) %>%
+                                  pivot_longer(!ID, values_to = "reads", names_to = "type")
+                      )
+
+ggplot() +
+  geom_bar(data = df_trimmed_summary,
+           aes(y = factor(ID, ID_order),
+               x = reads,
+               fill = Treatment,
+               group = type
+           ), color = "black",
+           stat = "identity", position = "dodge"
+  ) +
+  labs(x = "Number of raw reads", y = "Sample", fill = "Treatment") +
+    scale_fill_manual(values=treatment_order_color) +
+    make_theme(setFill = F, setCol = F)
+```
+
+## Dereplicate and learn errors
+
+The first time it was run, the following was the output message:
+
+```{r}
+# derepd <- derepFastq(filt_read_files, verbose = T)
+# errors <- learnErrors(derepd, errorEstimationFunction=PacBioErrfun, BAND_SIZE=32, multithread=TRUE)
+# saveRDS(errors, "RDS/errors.rds")
+errors <- readRDS("RDS/errors.rds")
+plotErrors(errors)
+# dada2 <- dada(derepd, err=errors, BAND_SIZE=32, multithread=T)
+# saveRDS(dada2, "RDS/dada2.rds")
+dada2 <- readRDS("RDS/dada2.rds")
+seqtable <- makeSequenceTable(dada2); dim(seqtable)
+seqtable_out <- seqtable %>% as.data.frame %>%
+            rownames_to_column("ID") %>%
+            mutate(ID = Vectorize(remove_extension)(ID, "_filt_reads.fastq.gz")) %>%
+              column_to_rownames("ID") %>%
+              as.matrix()
+seqtable_out_pilot <- seqtable_out %>%
+                        as.data.frame %>%
+                          filter(row.names(.) %in% ID_order)
+seqtable_out_pilot <- seqtable_out_pilot[, colSums(seqtable_out_pilot != 0) > 1]
+dim(seqtable_out_pilot)
+
+# nproc = 6
+# seqtab <- seqtable_out_pilot
+# asv_sequences <- colnames(seqtab)
+# sample_names <- rownames(seqtab)
+# dna <- Biostrings::DNAStringSet(asv_sequences)
+# # ## Find clusters of ASVs to form the new OTUs
+# # aln <- DECIPHER::AlignSeqs(dna, processors = nproc)
+# # d <- DECIPHER::DistanceMatrix(aln, processors = nproc)
+# #  Clusterize(seqs, cutoff=seq(0.5, 0, -0.1), processors=1)
+# clusters <- Clusterize(
+#   dna, 
+#   method = "shortest",
+#   cutoff = 0.01, # use `cutoff = 0.0` for a 97% OTU 
+#   processors = nproc)
+# clusters
+# ## Use dplyr to merge the columns of the seqtab matrix for ASVs in the same OTU
+# # prep by adding sequences to the `clusters` data frame
+# clusters <- clusters %>%
+#   add_column(sequence = asv_sequences)
+# merged_seqtab <- seqtab %>%
+#   # setup: turn seqtab into a tibble with rows = ASVs and columns = samples
+#   t %>%
+#   as_tibble(rownames = "sequence") %>%
+#   # add the cluster information
+#   left_join(clusters, by = "sequence") %>%
+#   # merge ASVs in the same cluster, summing abundances within samples
+#   group_by(cluster) %>%
+#   mutate_at(vars(-sequence), sum) %>%
+#   # # Set new taxa names to OTU<cluster #> 
+#   # mutate(cluster = paste0("OTU", cluster)) %>%
+#   # convert back to a matrix in the original orientation
+#   column_to_rownames("sequence") %>%
+#   as("matrix") %>%
+  t
+# write.csv(file="04_Dada2ResultTaxonomy/ASVs_pilot_samples.csv", merged_seqtab)
+write.csv(file="04_Dada2ResultTaxonomy/ASVs_pilot_samples.csv", seqtable_out_pilot)
+
+
+df_trimmed_summary <- df_reads %>%
+                      left_join(trimming_summary %>% as.data.frame %>% 
+                                  mutate(ID = Vectorize(remove_extension)(rownames(.), "_reads.fastq.gz")) %>%
+                                  rename(raw = reads.in) %>%
+                                  rename(length_filt = reads.out) %>%
+                                  left_join(cbind("denoised" =  sapply(dada2, function(x) sum(x$denoised))) %>%
+                                            as.data.frame() %>% mutate(ID = Vectorize(remove_extension)(rownames(.), "_filt_reads.fastq.gz"))
+                                  ) %>%
+                                  pivot_longer(!ID, values_to = "reads", names_to = "type")
+                      )
+ggplot() +
+  geom_bar(data = df_trimmed_summary,
+           aes(y = factor(ID, ID_order),
+               x = reads,
+               fill = type,
+               group = type
+           ), color = "black",
+           stat = "identity", position = "dodge"
+  ) +
+  labs(x = "Number of raw reads", y = "Sample", fill = "Treatment") +
+    # scale_fill_manual(values=treatment_order_color) +
+    make_theme(setFill = T, setCol = F)
+```
+
+# Assign Taxonomy
+
+Silva full-length database downloaded from https://mothur.s3.us-east-2.amazonaws.com/wiki/silva.nr_v132.tgz.
+
+
+```{r}
+# system("mkdir database")
+# system("wget https://zenodo.org/record/3986799/files/silva_nr99_v138_wSpecies_train_set.fa.gz  -O database/silva_nr99_v138_wSpecies_train_set.fa.gz")
+# system("wget https://zenodo.org/record/3986799/files/silva_species_assignment_v138.fa.gz  -O database/silva_species_assignment_v138.fa.gz")
+
+silva_DB_assignTax <- "database/silva_nr99_v138_wSpecies_train_set.fa.gz"
+silva_DB_assignSpec <- "database/silva_species_assignment_v138.fa.gz"
+
+seqtable <- makeSequenceTable(dada2); dim(seqtable)
+seqtable_out <- seqtable %>% as.data.frame %>%
+            rownames_to_column("ID") %>%
+            mutate(ID = Vectorize(remove_extension)(ID, "_filt_reads.fastq.gz")) %>%
+              column_to_rownames("ID") %>%
+              as.matrix()
+# taxonomy <- assignTaxonomy(seqtable, silva_DB_assignTax, multithread=TRUE)
+# # saveRDS(taxonomy, "RDS/taxonomy_before_species_assigned.RDS")
+# taxonomy <- addSpecies(taxonomy, silva_DB_assignSpec)
+# saveRDS(taxonomy, "RDS/taxonomy.RDS")
+taxonomy <- readRDS("RDS/taxonomy.RDS")
+write.csv(file="04_Dada2ResultTaxonomy/Taxtable.csv", taxonomy)
+write.csv(file="04_Dada2ResultTaxonomy/ASVs.csv", seqtable_out)
+# Also write the tables for just the pilot experiment samples
+seqtable_out_pilot <- seqtable_out %>%
+                        as.data.frame %>%
+                          filter(row.names(.) %in% ID_order)
+seqtable_out_pilot <- seqtable_out_pilot[, colSums(seqtable_out_pilot != 0) > 10]
+dim(seqtable_out_pilot)
+write.csv(file="04_Dada2ResultTaxonomy/ASVs_pilot_samples.csv", seqtable_out_pilot)
+```
+
+
+# Phyloseq
+
+This part is not useful for the samples from the pilot experiment.
+
+```{r}
+samples_df <- df_meta_pilot %>% filter(!is.na(ID)) %>%
+                mutate(ID = ifelse(ID == "NC2.1", "NC2-1", ID)) %>%
+                mutate(ID = ifelse(ID == "M6.5", "M6-5", ID)) %>%
+                mutate(ID = ifelse(ID == "C8.2", "C8-2", ID)) %>%
+                mutate(ID = ifelse(ID == "D7.4", "D7-4", ID)) %>%
+                mutate(ID = ifelse(ID == "F4.3", "F4-3", ID)) %>%
+                mutate(ID = ifelse(ID == "A4.3", "A4-3", ID)) %>%
+                column_to_rownames("ID")
+taxonomy_mat <- read.table("04_Dada2ResultTaxonomy/Taxtable.csv", sep = ",",header=T) %>%
+                    column_to_rownames("X") %>%
+                      as.matrix()
+otu_mat <- seqtable %>% as.data.frame %>%
+            rownames_to_column("ID") %>%
+            mutate(ID = Vectorize(remove_extension)(ID, "_filt_reads.fastq.gz")) %>%
+              column_to_rownames("ID") %>%
+              as.matrix()
+ps_raw <- phyloseq(otu_table(otu_mat, taxa_are_rows=F), 
+               sample_data(samples_df), 
+               tax_table(taxonomy_mat))
+
+dna <- Biostrings::DNAStringSet(taxa_names(ps_raw))
+names(dna) <- taxa_names(ps_raw)
+ps_raw <- merge_phyloseq(ps_raw, dna)
+taxa_names(ps_raw) <- paste0("ASV", seq(ntaxa(ps_raw)))
+ps <- ps_raw
+
+# system("mkdir 05_PhyloseqObject")
+
+table = merge(tax_table(ps),t(otu_table(ps)), by="row.names")
+write.table(table, "05_PhyloseqObject/ASVtable.txt", sep="\t", row.names = F)
+
+# Export to FASTA with Biostrings
+Biostrings::writeXStringSet(refseq(ps), "05_PhyloseqObject/phyloseq_ASVs.fasta",append=FALSE, format="fasta")
+
+#save Phyloseq object
+saveRDS(ps, '05_PhyloseqObject/PhyloSeq_Object.rds')
+
+#Check that you can import it
+ps <- readRDS("05_PhyloseqObject/PhyloSeq_Object.rds")
+```
+
+# Analysis for pilot experiment in phyloseq
+
+results in `06_quantify_strains`
+
+```{r phy}
+samples_df <- df_meta_pilot %>%
+                filter(ID %in% ID_order) %>%
+                column_to_rownames("ID")
+# dada2 <- readRDS("RDS/dada2.rds")
+# seqtable_sub <- makeSequenceTable(dada2) %>%
+#                  as.data.frame %>%
+#                   rownames_to_column("ID") %>%
+#                   mutate(ID = Vectorize(remove_extension)(ID, "_filt_reads.fastq.gz")) %>%
+#                   filter(ID %in% ID_order) %>%
+#                     column_to_rownames("ID")
+# seqtable_sub <- seqtable_sub[, which(colSums(seqtable_sub) > 10)]
+# sum(rowSums(seqtable_sub[, which(colSums(seqtable_sub) > 10)]))
+otu_mat <- seqtable %>% as.data.frame %>%
+            rownames_to_column("ID") %>%
+            mutate(ID = Vectorize(remove_extension)(ID, "_filt_reads.fastq.gz")) %>%
+            filter(ID %in% ID_order) %>%
+              column_to_rownames("ID") %>%
+              as.matrix()
+taxonomy_mat <- read.table("04_Dada2ResultTaxonomy/Taxtable_strains.csv", sep = ",",header=T) %>%
+                    mutate(Community = ifelse(Strain %in% community_a, "a", NA)) %>%
+                    mutate(Community = ifelse(Strain %in% community_b, "b", Community)) %>%
+                    mutate(Community = ifelse(Strain %in% community_ab, "ab", Community)) %>%
+                    column_to_rownames("X") %>%
+                      as.matrix()
+ps_raw <- phyloseq(otu_table(otu_mat, taxa_are_rows=F), 
+               sample_data(samples_df), 
+               tax_table(taxonomy_mat))
+ps_rel <- transform_sample_counts(ps_raw, function(x) x / sum(x) )
+most_abundant_taxa <- sort(taxa_sums(ps_rel), TRUE)[1:5]
+ps_high <- prune_taxa(names(most_abundant_taxa), ps_rel)
+
+plot_bar(ps_high, fill = "Strain")
+plot_bar(ps_high, fill = "Community")
+ps_merged <- merge_samples(ps_high, "Treatment")
+plot_bar(ps_merged, fill = "Strain")
+plot_bar(ps_merged, fill = "Community")
+```
+
+
+```{bash logs}
+Encountered 25311 unique sequences from 35750 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/2-13_filt_reads.fastq.gz
+Encountered 35699 unique sequences from 46292 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/3-1_filt_reads.fastq.gz
+Encountered 30027 unique sequences from 39660 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/3-13_filt_reads.fastq.gz
+Encountered 44745 unique sequences from 58648 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/1-1_filt_reads.fastq.gz
+Encountered 31594 unique sequences from 44069 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/1-4_filt_reads.fastq.gz
+Encountered 18983 unique sequences from 26842 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/2-4_filt_reads.fastq.gz
+Encountered 1116 unique sequences from 1733 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/2-16_filt_reads.fastq.gz
+Encountered 3711 unique sequences from 5476 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/3-4_filt_reads.fastq.gz
+Encountered 1904 unique sequences from 2949 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/3-16_filt_reads.fastq.gz
+Encountered 9548 unique sequences from 16212 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/1-8_filt_reads.fastq.gz
+Encountered 47470 unique sequences from 59056 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/2-8_filt_reads.fastq.gz
+Encountered 24277 unique sequences from 32085 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/2-20_filt_reads.fastq.gz
+Encountered 25469 unique sequences from 37459 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/3-8_filt_reads.fastq.gz
+Encountered 50314 unique sequences from 62312 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/3-20_filt_reads.fastq.gz
+Encountered 13936 unique sequences from 19751 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/1-11_filt_reads.fastq.gz
+Encountered 5167 unique sequences from 7159 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/1-23_filt_reads.fastq.gz
+Encountered 14271 unique sequences from 19968 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/2-11_filt_reads.fastq.gz
+Encountered 39406 unique sequences from 53634 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/2-23_filt_reads.fastq.gz
+Encountered 51177 unique sequences from 68850 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/3-11_filt_reads.fastq.gz
+Encountered 42152 unique sequences from 55583 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/1-5_filt_reads.fastq.gz
+Encountered 4013 unique sequences from 5890 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/2-5_filt_reads.fastq.gz
+Encountered 50411 unique sequences from 60324 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/2-17_filt_reads.fastq.gz
+Encountered 40416 unique sequences from 54236 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/3-5_filt_reads.fastq.gz
+Encountered 22875 unique sequences from 33273 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/3-17_filt_reads.fastq.gz
+Encountered 37680 unique sequences from 48906 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/1-9_filt_reads.fastq.gz
+Encountered 17431 unique sequences from 26426 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/2-9_filt_reads.fastq.gz
+Encountered 29739 unique sequences from 45518 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/2-21_filt_reads.fastq.gz
+Encountered 59210 unique sequences from 74139 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/3-9_filt_reads.fastq.gz
+Encountered 19802 unique sequences from 31620 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/1-12_filt_reads.fastq.gz
+Encountered 5803 unique sequences from 8049 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/1-24_filt_reads.fastq.gz
+Encountered 18130 unique sequences from 24091 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/2-12_filt_reads.fastq.gz
+Encountered 11550 unique sequences from 16594 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/2-24_filt_reads.fastq.gz
+Encountered 52275 unique sequences from 66370 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/3-12_filt_reads.fastq.gz
+Encountered 42304 unique sequences from 55989 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/1-2_filt_reads.fastq.gz
+Encountered 6493 unique sequences from 8374 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/2-2_filt_reads.fastq.gz
+Encountered 25222 unique sequences from 35653 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/2-14_filt_reads.fastq.gz
+Encountered 16720 unique sequences from 23963 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/3-2_filt_reads.fastq.gz
+Encountered 36558 unique sequences from 48755 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/3-14_filt_reads.fastq.gz
+Encountered 29841 unique sequences from 41137 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/1-3_filt_reads.fastq.gz
+Encountered 32313 unique sequences from 42722 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/2-3_filt_reads.fastq.gz
+Encountered 56757 unique sequences from 70641 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/2-15_filt_reads.fastq.gz
+Encountered 24206 unique sequences from 33741 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/3-3_filt_reads.fastq.gz
+Encountered 18796 unique sequences from 27515 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/3-15_filt_reads.fastq.gz
+Encountered 60720 unique sequences from 73779 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/1-6_filt_reads.fastq.gz
+Encountered 9497 unique sequences from 13148 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/2-6_filt_reads.fastq.gz
+Encountered 41386 unique sequences from 57656 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/2-18_filt_reads.fastq.gz
+Encountered 28411 unique sequences from 39401 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/3-6_filt_reads.fastq.gz
+Encountered 16426 unique sequences from 23162 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/3-18_filt_reads.fastq.gz
+Encountered 24722 unique sequences from 36216 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/1-7_filt_reads.fastq.gz
+Encountered 28031 unique sequences from 35677 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/2-7_filt_reads.fastq.gz
+Encountered 16 unique sequences from 16 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/2-19_filt_reads.fastq.gz
+Encountered 64212 unique sequences from 78302 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/3-7_filt_reads.fastq.gz
+Encountered 44270 unique sequences from 53771 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/3-19_filt_reads.fastq.gz
+Encountered 24698 unique sequences from 32372 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/1-10_filt_reads.fastq.gz
+Encountered 746 unique sequences from 1072 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/2-10_filt_reads.fastq.gz
+Encountered 370 unique sequences from 474 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/2-22_filt_reads.fastq.gz
+Encountered 1460 unique sequences from 2223 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/3-10_filt_reads.fastq.gz
+Encountered 3104 unique sequences from 5382 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/3-21_filt_reads.fastq.gz
+Encountered 4620 unique sequences from 7619 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/3-22_filt_reads.fastq.gz
+Encountered 11 unique sequences from 11 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/1-13_filt_reads.fastq.gz
+Encountered 6305 unique sequences from 7733 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/1-14_filt_reads.fastq.gz
+Encountered 9993 unique sequences from 13674 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/1-15_filt_reads.fastq.gz
+Encountered 31240 unique sequences from 43219 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/1-19_filt_reads.fastq.gz
+Encountered 23922 unique sequences from 32718 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/1-16_filt_reads.fastq.gz
+Encountered 11653 unique sequences from 14374 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/1-17_filt_reads.fastq.gz
+Encountered 2325 unique sequences from 2763 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/1-18_filt_reads.fastq.gz
+Encountered 2600 unique sequences from 3076 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/1-20_filt_reads.fastq.gz
+Encountered 5 unique sequences from 5 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/1-21_filt_reads.fastq.gz
+Encountered 26 unique sequences from 26 total sequences read.
+Dereplicating sequence entries in Fastq file: 04_Dada2Filtered/1-22_filt_reads.fastq.gz
+Encountered 27 unique sequences from 27 total sequences read.
+```

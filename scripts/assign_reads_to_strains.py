@@ -38,10 +38,10 @@ Example:
 
 python3 scripts/assign_reads_to_strains.py --database_path "database/16S_sequences/" \
                                            --reads_file "01_ReadsRenamed/2-2_reads.fastq.gz" \
-                                           --summary_file_path "03_assign_reads_to_strain/2-2_summary.txt" \
-                                           --outfile_path "03_assign_reads_to_strain/2-2_strain_counts.csv" \
+                                           --summary_file_path "04_assign_reads_to_strain/2-2_summary.txt" \
+                                           --outfile_path "04_assign_reads_to_strain/2-2_strain_counts.csv" \
                                            --sample "2-2" \
-                                           --log_file  "03_assign_reads_to_strain/2-2_assign_reads_to_strains.log" \
+                                           --log_file  "04_assign_reads_to_strain/2-2_assign_reads_to_strains.log" \
                                            --match_id_cutoff 0.95
 """
 

@@ -49,7 +49,7 @@ def convertToSec(string):
 
 rule all:
     input:
-        expand("03_assign_reads_to_strain/{sample}_strain_counts.csv", sample=SAMPLES)
+        expand("04_assign_reads_to_strain/{sample}_strain_counts.csv", sample=SAMPLES)
 
 rule rename_reads:
     input:
@@ -93,7 +93,7 @@ rule fastqc:
         fastqc -t {threads} {input.reads} -o {params.outdir}
         """
 
-rule identify_write_positions:
+rule identify_and_write_positions:
     input:
         fasta_sequences = config["database"]["all_sequences"]
     output:
@@ -112,9 +112,9 @@ rule identify_write_positions:
     resources:
         mem_mb = 16000
     log:
-        "database/16S_sequences/identify_write_positions.log"
+        "database/16S_sequences/identify_and_write_positions.log"
     benchmark:
-        "database/16S_sequences/identify_write_positions.benchmark"
+        "database/16S_sequences/identify_and_write_positions.benchmark"
     shell:
         """
         python3 scripts/identify_unique_position_set.py --database_path {params.database_path} \
@@ -130,9 +130,9 @@ rule assign_reads_to_strains:
         pickle_file = "database/16S_sequences/unique_position_info.pickle",
         alignment = "database/16S_sequences/16S_aligned.fasta"
     output:
-        csv = "03_assign_reads_to_strain/{sample}_strain_counts.csv",
-        summary = "03_assign_reads_to_strain/{sample}_summary.txt",
-        progress = temp("03_assign_reads_to_strain/{sample}.progress")
+        csv = "04_assign_reads_to_strain/{sample}_strain_counts.csv",
+        summary = "04_assign_reads_to_strain/{sample}_summary.txt",
+        progress = temp("04_assign_reads_to_strain/{sample}.progress")
     threads: 2
     conda: 
         "envs/pacbio-ampli-env.yaml"
@@ -146,9 +146,9 @@ rule assign_reads_to_strains:
     resources:
         mem_mb = convertToMb("80G")
     log:
-        "03_assign_reads_to_strain/{sample}_assign_reads_to_strains.log"
+        "04_assign_reads_to_strain/{sample}_assign_reads_to_strains.log"
     benchmark:
-        "03_assign_reads_to_strain/{sample}_assign_reads_to_strains.benchmark"
+        "04_assign_reads_to_strain/{sample}_assign_reads_to_strains.benchmark"
     shell:
         """
         python3 scripts/assign_reads_to_strains.py --database_path {params.database_path} \
