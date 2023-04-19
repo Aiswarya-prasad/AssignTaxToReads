@@ -80,6 +80,8 @@ ID_order <- c("2-1", "2-13", "3-1", "3-13", "1-1",
 system("mkdir -p Figures")
 system("mkdir -p RDS")
 system("mkdir -p 03_Dada2Preprocessed")
+system("mkdir -p 04_Results")
+system("mkdir -p 04_Results/Taxonomy")
 ```
 
 # Introduction
@@ -107,7 +109,7 @@ ggplot() +
                axis_y_title = 18, guide_nrow = 3,
                y_size = 10,
                x_size = 18)
-ggsave("Figures/qPCR_copy_numbers.pdf")
+ggsave("04_Results/Figures/qPCR_copy_numbers.pdf")
 ```
 
 The samples were pooled in the library based on the intensity of the bands of the respective samples after PCR. The sequencing yields are plotted below.
@@ -139,7 +141,7 @@ ggplot() +
                axis_y_title = 18, guide_nrow = 1,
                y_size = 10,
                x_size = 18)
-ggsave("Figures/Number_of_reads_by_volume.pdf")
+ggsave("04_Results/Figures/Number_of_reads_by_volume.pdf")
 ```
 
 # Preprocessing reads
@@ -156,11 +158,11 @@ primer_remove_out_files = as.character(lapply(ID_order, function(x) paste0("03_D
 f_primer <- "AGRGTTYGATYMTGGCTCAG"
 r_primer <- "RGYTACCTTGTTACGACTT"
 r_primer_comp <- rc(r_primer)
-primer_removal_summary <- removePrimers(primer_remove_in_files, primer_remove_out_files,
-              primer.fwd = f_primer,
-              primer.rev = r_primer_comp,
-              verbose = TRUE)
-saveRDS(primer_removal_summary, "RDS/primer_removal_summary.rds")
+# primer_removal_summary <- removePrimers(primer_remove_in_files, primer_remove_out_files,
+#               primer.fwd = f_primer,
+#               primer.rev = r_primer_comp,
+#               verbose = TRUE)
+# saveRDS(primer_removal_summary, "RDS/primer_removal_summary.rds")
 primer_removal_summary <- readRDS("RDS/primer_removal_summary.rds")
 ```
 
@@ -175,7 +177,7 @@ The step to get read lengths takes a long time so save the output and reload for
 # read_lengths <- lapply(raw_reads_renamed, function(x) nchar(getSequences(x)))
 # saveRDS(read_lengths, "RDS/read_lengths.rds")
 read_lengths <- readRDS("RDS/read_lengths.rds")
-pdf("Figures/Read_length_histogram.pdf")
+pdf("04_Results/Figures/Read_length_histogram.pdf")
 hist(do.call(c, read_lengths), 100)
 dev.off()
 hist(do.call(c, read_lengths), 100)
@@ -199,7 +201,7 @@ trimming_summary <- readRDS("RDS/trimming_summary.rds")
 # read_lengths_filt <- lapply(filt_read_files, function(x) nchar(getSequences(x)))
 # saveRDS(read_lengths_filt, "RDS/read_lengths_filt.rds")
 read_lengths_filt <- readRDS("RDS/read_lengths_filt.rds")
-pdf("Figures/Read_length_filtered_histogram.pdf")
+pdf("04_Results/Figures/Read_length_filtered_histogram.pdf")
 hist(do.call(c, read_lengths_filt), 100)
 dev.off()
 hist(do.call(c, read_lengths_filt), 100)
@@ -208,6 +210,9 @@ hist(do.call(c, read_lengths_filt), 100)
 ## Dada2 quality plots
 
 ```{r}
+pdf("04_Results/Figures/QualityProfilePlot1-5.pdf")
+plotQualityProfile(filt_read_files[1:5])
+dev.off()
 plotQualityProfile(filt_read_files[1:5])
 ```
 
@@ -225,6 +230,7 @@ dada2 <- readRDS("RDS/dada2.rds")
 seqtable <- makeSequenceTable(dada2); dim(seqtable)
 seqtable_nochim <- removeBimeraDenovo(seqtable, method = "consensus", multithread = TRUE, verbose = TRUE); dim(seqtable)
 sum(seqtable_nochim)/sum(seqtable)
+# hist(as.numeric(lapply(colnames(seqtable_nochim), function(x) nchar(x))))
 ```
 
 ## Summarise pre-processing
@@ -264,7 +270,7 @@ ggplot() +
   scale_x_continuous(labels=unit_format(unit = "K", scale = 1e-3)) +
   labs(x = "Number of reads", y = "Sample", fill = "Preprocessing step    ") +
     make_theme(setFill = T, setCol = F, x_angle = 30)
-ggsave("Figures/summary_of_preprocessing.pdf")
+ggsave("04_Results/Figures/summary_of_preprocessing.pdf")
 
 ggplot() +
   geom_bar(data = df_summary,
@@ -279,5 +285,270 @@ ggplot() +
   scale_x_continuous(labels=unit_format(unit = "K", scale = 1e-3)) +
   labs(x = "Number of reads", y = "Sample", fill = "Preprocessing step    ") +
     make_theme(setFill = T, setCol = F, x_angle = 30)
-ggsave("Figures/summary_of_preprocessing_free.pdf")
+ggsave("04_Results/Figures/summary_of_preprocessing_free.pdf")
+```
+
+```{r}
+seqtable_out <- seqtable_nochim %>% as.data.frame %>%
+            rownames_to_column("ID") %>%
+            mutate(ID = Vectorize(remove_extension)(ID, "_filt_reads.fastq.gz")) %>%
+              column_to_rownames("ID") %>%
+              as.matrix()
+
+hist(as.numeric(lapply(colnames(seqtable_out[, colSums(seqtable_out != 0) > 0]), function(x) nchar(x))), 100)
+hist(as.numeric(lapply(colnames(seqtable_out[, colSums(seqtable_out != 0) > 1]), function(x) nchar(x))), 100)
+
+
+
+df_strains <- read_excel("/nas/FAC/FBM/DMF/pengel/spirit/D2c/aprasad/20220921_aprasad_PriorityEffectsExperimentPilot/03_PilotExperiment/02_CalculateDilutionsOD.xlsx", sheet = 2)
+genome_names <- c(df_strains$pair_a, df_strains$pair_b) %>% as.data.frame %>%
+                  filter(startsWith(., "ESL")) %>%
+                    pull
+df_strains_info <- data.frame("Genome" = genome_names)
+identical_copies <- c("ESL0824", "ESL0200", "ESL0197", "ESL0820", "ESL0170", "ESL0199", "ESL0819","ESL0185", "ESL0186")
+non_identical_copies <- c("ESL0183", "ESL0184")
+single_copies <- c("ESL0825", "ESL0822", "ESL0827", "ESL0295", "ESL0198", "ESL0394", "ESL0263", "ESL0262", "ESL0350", "ESL0261")
+community_ab <- c("ESL0197")
+community_a <- c("ESL0825","ESL0822","ESL0824","ESL0827","ESL0200","ESL0295","ESL0185","ESL0183","ESL0184","ESL0186")
+community_b <- c("ESL0820", "ESL0170", "ESL0198", "ESL0199", "ESL0819", "ESL0394", "ESL0263", "ESL0262", "ESL0350", "ESL0261")
+# database_sequences <- as.character(lapply(df_strains_info$Genome, function(x) system(paste0("ls ", working_dir, "/database/16S_sequences/*.fa | grep ", paste0(x, "-1")), intern = T)))
+# x <- database_sequences[[12]]
+# hist(as.numeric(
+#       lapply(database_sequences,
+#              function(x) system(paste0("cat ", x, " | grep -v '>' | wc -c"), intern = T)
+#           )
+#       )
+#     )
+```
+
+```{r}
+# system("wget https://zenodo.org/record/3986799/files/silva_nr99_v138_wSpecies_train_set.fa.gz  -O database/silva_nr99_v138_wSpecies_train_set.fa.gz")
+silva_DB_assignTax <- "database/silva_nr99_v138_wSpecies_train_set.fa.gz"
+# taxonomySilva <- assignTaxonomy(seqtable_nochim, silva_DB_assignTax, minBoot = 80, multithread=TRUE, verbose = TRUE)
+# saveRDS(taxonomySilva, "RDS/taxonomySilva.rds")
+taxonomySilva <- readRDS("RDS/taxonomySilva.rds")
+formatted_DB_assignSpec <- "/scratch/aprasad/2023-pacbio_sequence_analysis/database/pilot_experiment_sequences_for_species_assignment.fasta"
+# taxonomyCommunity <- assignSpecies(taxonomySilva, formatted_DB_assignSpec, allowMultiple = T, verbose = T)
+# saveRDS(taxonomyCommunity, "RDS/taxonomyCommunity.rds")
+taxonomyCommunity <- readRDS("RDS/taxonomyCommunity.rds")
+taxonomy_df <- taxonomySilva %>% 
+                as.data.frame %>%
+                  rownames_to_column("ASV") %>%
+                  left_join(taxonomyCommunity %>%
+                              as.data.frame() %>%
+                                mutate(SDP = Genus) %>%
+                                mutate(Community = Species) %>%
+                                  select(!c(Genus, Species)) %>%
+                                    rownames_to_column("ASV")
+                                )
+write.csv(file="04_Results/Taxonomy/Taxonomy.csv", taxonomy_df)
+```
+
+```{r}
+ranks_assigned_df <- data.frame(rank = c("Total", colnames(taxonomy_df))) %>%
+                        mutate(num_ASVs = Vectorize(get_number_assigned)(rank))
+ggplot() +
+  geom_bar(data = ranks_assigned_df,
+           aes(x = factor(rank, c("Total", colnames(taxonomy_df))),
+               y = num_ASVs,
+               fill = factor(rank, c("Total", colnames(taxonomy_df)))
+           ), stat = "identity"
+          ) +
+    labs(x = "Rank", y = "Number of ASVs", fill = "Rank") +
+      make_theme(max_colors = length(unique(ranks_assigned_df$rank)), 
+                 x_angle = 30, x_hj = 1, x_vj = 1)
+      ggsave("04_Results/Figures/Assigned_ranks.pdf")
+
+ggplot() +
+  geom_bar(data = taxonomy_df,
+           aes(x = Phylum,
+               fill = Phylum
+           ), stat = "count"
+          ) +
+    labs(x = "Phylum", y = "Number of ASVs", fill = "Phylum") +
+      make_theme(x_angle = 30)
+      ggsave("04_Results/Figures/Phylum_summary.pdf")
+
+ggplot() +
+  geom_bar(data = taxonomy_df,
+           aes(x = Family,
+               fill = Family
+           ), stat = "count"
+          ) +
+    labs(x = "Family", y = "Number of ASVs", fill = "Family") +
+      make_theme(x_angle = 30, x_vj = 1, x_hj = 1, 
+                 guide_nrow = 4,
+                 x_size = 7,
+                 leg_size = 6,
+                 max_colors = length(unique(taxonomy_df$Family)))
+      ggsave("04_Results/Figures/Family_summary.pdf")
+```
+
+```{r}
+samples_df <- df_meta_pilot %>% 
+                filter(!is.na(Sample)) %>%
+                filter(!is.na(ID)) %>%
+                column_to_rownames("ID")
+taxonomy_mat <- taxonomy_df %>%
+                  column_to_rownames("ASV") %>%
+                    as.matrix
+otu_mat <- seqtable_nochim %>% as.data.frame %>%
+            rownames_to_column("ID") %>%
+            mutate(ID = Vectorize(remove_extension)(ID, "_filt_reads.fastq.gz")) %>%
+              column_to_rownames("ID") %>%
+              as.matrix()
+ps_raw <- phyloseq(otu_table(otu_mat, taxa_are_rows=F), 
+               sample_data(samples_df), 
+               tax_table(taxonomy_mat))
+
+dna <- Biostrings::DNAStringSet(taxa_names(ps_raw))
+names(dna) <- taxa_names(ps_raw)
+
+ps_raw <- merge_phyloseq(ps_raw, dna)
+taxa_names(ps_raw) <- paste0("ASV", seq(ntaxa(ps_raw)))
+ps <- ps_raw
+
+table = merge(tax_table(ps),t(otu_table(ps)), by="row.names")
+write.table(table, "04_Results/ASVtable.txt", sep="\t", row.names = F)
+
+# Export to FASTA with Biostrings
+Biostrings::writeXStringSet(refseq(ps), "04_Results/phyloseq_ASVs.fasta",append=FALSE, format="fasta")
+# save Phyloseq object
+saveRDS(ps, 'RDS/phyloseq_object_raw.rds')
+# Check that you can import it
+ps <- readRDS("RDS/phyloseq_object_raw.rds")
+```
+
+```{r}
+ps_rel <- transform_sample_counts(ps_raw, function(x) x / sum(x) )
+abundant_taxa <- taxa_sums(ps_rel)[which(taxa_sums(ps_rel) > 0.005)]
+ps_abundant_taxa <- prune_taxa(names(abundant_taxa), ps_rel)
+# plot_bar(ps_abundant_taxa, fill = "Genus")
+# plot_bar(ps_abundant_taxa, fill = "Community    ")
+```
+
+```{r}
+ASV_counts_df <- psmelt(ps_raw) %>%
+  group_by(Sample) %>%
+  mutate(Percentage = Abundance/sum(Abundance)) %>%
+  mutate(Species = paste0(Genus, " ", Species))
+
+ASV_counts_df_treatment <- ASV_counts_df %>%
+                            group_by(Treatment, OTU) %>%
+                            mutate(Abundance_treatment = mean(Abundance)) %>%
+                            select(OTU, Treatment, Abundance_treatment, Community) %>%
+                            unique %>%
+                            ungroup() %>%
+                            group_by(Treatment) %>%
+                            mutate(Percentage = Abundance_treatment/sum(Abundance_treatment))
+
+ASV_counts_df_treatment_no_na <- ASV_counts_df %>%
+                            filter(!is.na(Community)) %>%
+                            group_by(Treatment, OTU) %>%
+                            mutate(Abundance_treatment = mean(Abundance)) %>%
+                            select(OTU, Treatment, Abundance_treatment, Community) %>%
+                            unique %>%
+                            ungroup() %>%
+                            group_by(Treatment) %>%
+                            mutate(Percentage = Abundance_treatment/sum(Abundance_treatment))
+
+ggplot() +
+  geom_bar(data = ASV_counts_df_treatment,
+           aes(x = Treatment,
+               y = Abundance_treatment,
+               fill = Community),
+           stat = "identity", position = "stack", color = "black", size = 0.1
+           ) +
+  labs(x = "Sample", y = "Count", fill = "Community   ") +
+  scale_fill_manual(values = c(brewer.pal(9, "Spectral")[1],
+                               brewer.pal(9, "Spectral")[8],
+                               brewer.pal(9, "Spectral")[9],
+                               "grey"
+                              ), label = c("A", "A and B", "B", "Unassigned")
+                   ) +
+    make_theme(setFill = F, palettefill = "Spectral", leg_size = 12, guide_nrow = 2,
+               max_colors = 9,
+               x_angle = 30, x_hj = 1, x_vj = 1
+      )
+      ggsave("04_Results/Figures/Community_abd_by_treatment_withNAs.pdf")
+
+ggplot() +
+  geom_bar(data = ASV_counts_df,
+           aes(x = Sample,
+               y = Abundance,
+               fill = Community),
+           stat = "identity", position = "stack", color = "black", size = 0.1
+           ) +
+  labs(x = "Sample", y = "Count", fill = "Community    ") +
+  scale_fill_manual(values = c(brewer.pal(9, "Spectral")[1],
+                               brewer.pal(9, "Spectral")[8],
+                               brewer.pal(9, "Spectral")[9],
+                               "grey"
+                              ), label = c("A", "A and B", "B", "Unassigned")
+                   ) +
+    make_theme(setFill = F, palettefill = "Spectral", leg_size = 12, guide_nrow = 1,
+               max_colors = 9,
+               x_angle = 30, x_hj = 1, x_vj = 1
+      )
+      ggsave("04_Results/Figures/Community_abd_by_treatment_withNAs.pdf")
+
+ggplot() +
+  geom_bar(data = ASV_counts_df,
+           aes(x = Sample,
+               y = Percentage,
+               fill = Community),
+           stat = "identity", position = "stack", color = "black", size = 0.1
+           ) +
+  labs(x = "Sample", y = "Count", fill = "Community    ") +
+  scale_fill_manual(values = c(brewer.pal(9, "Spectral")[1],
+                               brewer.pal(9, "Spectral")[8],
+                               brewer.pal(9, "Spectral")[9],
+                               "grey"
+                              ), label = c("A", "A and B", "B", "Unassigned")
+                   ) +
+    make_theme(setFill = F, palettefill = "Spectral", leg_size = 12, guide_nrow = 1,
+               max_colors = 9,
+               x_angle = 30, x_hj = 1, x_vj = 1
+      )
+      ggsave("04_Results/Figures/Community_abd_percentage_by_sample_withNAs.pdf")
+
+ggplot() +
+  geom_bar(data = ASV_counts_df_treatment,
+           aes(x = Treatment,
+               y = Percentage,
+               fill = Community),
+           stat = "identity", position = "stack", color = "black", size = 0.1
+           ) +
+  labs(x = "Sample", y = "Count", fill = "Community    ") +
+  scale_fill_manual(values = c(brewer.pal(9, "Spectral")[1],
+                               brewer.pal(9, "Spectral")[8],
+                               brewer.pal(9, "Spectral")[9],
+                               "grey"
+                              ), label = c("A", "A and B", "B", "Unassigned")
+                   ) +
+    make_theme(setFill = F, palettefill = "Spectral", leg_size = 12, guide_nrow = 1,
+               max_colors = 9,
+               x_angle = 30, x_hj = 1, x_vj = 1
+      )
+      ggsave("04_Results/Figures/Community_abd_percentage_by_treatment_withNAs.pdf")
+
+ggplot() +
+  geom_bar(data = ASV_counts_df_treatment_no_na,
+           aes(x = Treatment,
+               y = Percentage,
+               fill = Community),
+           stat = "identity", position = "stack", color = "black", size = 0.1
+           ) +
+  labs(x = "Sample", y = "Count", fill = "Community    ") +
+  scale_fill_manual(values = c(brewer.pal(9, "Spectral")[1],
+                               brewer.pal(9, "Spectral")[8],
+                               brewer.pal(9, "Spectral")[9],
+                               "grey"
+                              ), label = c("A", "A and B", "B", "Unassigned")
+                   ) +
+    make_theme(setFill = F, palettefill = "Spectral", leg_size = 12, guide_nrow = 1,
+               max_colors = 9,
+               x_angle = 30, x_hj = 1, x_vj = 1
+      )
+      ggsave("04_Results/Figures/Community_abd_percentage_by_treatment.pdf")
 ```

@@ -109,3 +109,60 @@ get_number_of_reads <- function(file) {
   return(as.numeric(number))
 
 }
+get_number_assigned <- function(rank_name) {
+  if (rank_name == "Total") {
+    return(dim(taxonomy_df)[[1]])
+  } else {
+    num_ASVs <- dim(taxonomy_df[rank_name])[[1]] - sum(is.na(taxonomy_df[rank_name]))
+    return(num_ASVs)
+  }
+}
+genusColors <- c("Bombilactobacillus" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[1], "#FFFFFF"))(10), -1)[1],
+                    "Lactobacillus" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[1], "#FFFFFF"))(10), -1)[4],
+                    "Bifidobacterium" = brewer.pal(11, "Spectral")[3],
+                    "Gilliamella" = brewer.pal(11, "Spectral")[11],
+                    "Frischella" = brewer.pal(11, "Spectral")[8],
+                    "Bartonella" = brewer.pal(11, "Spectral")[7],
+                    "Snodgrassella" = brewer.pal(11, "Spectral")[10],
+                    "Apibacter" = brewer.pal(11, "Spectral")[4],
+                    "Commensalibacter" = brewer.pal(11, "Spectral")[6],
+                    "Bombella" = brewer.pal(11, "Spectral")[5],
+                    "Apilactobacillus" = brewer.pal(11, "Spectral")[9],
+                    "Dysgonomonas" = brewer.pal(11, "Spectral")[2],
+                    "Spiroplasma" = brewer.pal(8, "Set1")[8],
+                    "WRHT01" = brewer.pal(8, "Dark2")[3],
+                    "Pectinatus" = brewer.pal(8, "Dark2")[1],
+                    "Enterobacter" = head(colorRampPalette(c(brewer.pal(11, "BrBG")[2], "#FFFFFF"))(10), -1)[1],
+                    "Zymobacter" = head(colorRampPalette(c(brewer.pal(11, "BrBG")[2], "#FFFFFF"))(10), -1)[2],
+                    "Entomomonas"= head(colorRampPalette(c(brewer.pal(11, "BrBG")[2], "#FFFFFF"))(10), -1)[4],
+                    "Saezia" = head(colorRampPalette(c(brewer.pal(11, "BrBG")[2], "#FFFFFF"))(10), -1)[6],
+                    "Parolsenella" = head(colorRampPalette(c(brewer.pal(11, "BrBG")[2], "#FFFFFF"))(10), -1)[8]
+)
+extend_colors <- function(names_vec, colors_vec, greys = T, pal = "Pastel1"){
+  final_list <- c()
+  if (greys) {
+     for (a_name in names_vec) {
+      if (a_name %in% names(colors_vec)) {
+        final_list[a_name] = colors_vec[a_name]
+      } else {
+        final_list[a_name] = "grey"
+      }
+    }
+  } else {
+    i = 1
+    num_new_cols = length(names_vec[which(!(names_vec %in% names(colors_vec)))])
+    for (a_name in names_vec) {
+      if (a_name %in% names(colors_vec)) {
+        final_list[a_name] = colors_vec[a_name]
+      } else {
+        if (num_new_cols > 9) {
+         final_list[a_name] = colorRampPalette(brewer.pal(9, pal))(num_new_cols)[i] 
+        } else {
+          final_list[a_name] = brewer.pal(num_new_cols, pal)[i] 
+        }
+        i = i + 1
+      }
+    }
+  }
+  return(final_list) 
+}
