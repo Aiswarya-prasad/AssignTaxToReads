@@ -195,7 +195,7 @@ The step to get read lengths takes a long time so save the output and reload for
 # read_lengths <- lapply(raw_reads_renamed, function(x) nchar(getSequences(x)))
 # saveRDS(read_lengths, "RDS/read_lengths.rds")
 read_lengths <- readRDS("RDS/read_lengths.rds")
-pdf("04_Results/Figures/Read_length_histogram.pdf")
+pdf("04_Results/Figures/Read_length_histogram.pdf", width = 11, height = 8)
 hist(do.call(c, read_lengths), 100)
 dev.off()
 hist(do.call(c, read_lengths), 100)
@@ -219,7 +219,7 @@ trimming_summary <- readRDS("RDS/trimming_summary.rds")
 # read_lengths_filt <- lapply(filt_read_files, function(x) nchar(getSequences(x)))
 # saveRDS(read_lengths_filt, "RDS/read_lengths_filt.rds")
 read_lengths_filt <- readRDS("RDS/read_lengths_filt.rds")
-pdf("04_Results/Figures/Read_length_filtered_histogram.pdf")
+pdf("04_Results/Figures/Read_length_filtered_histogram.pdf", width = 11, height = 8)
 hist(do.call(c, read_lengths_filt), 100)
 dev.off()
 hist(do.call(c, read_lengths_filt), 100)
@@ -228,7 +228,7 @@ hist(do.call(c, read_lengths_filt), 100)
 ## Dada2 quality plots
 
 ```{r}
-pdf("04_Results/Figures/QualityProfilePlot1-5.pdf")
+pdf("04_Results/Figures/QualityProfilePlot1-5.pdf", width = 11, height = 8)
 plotQualityProfile(filt_read_files[1:5])
 dev.off()
 plotQualityProfile(filt_read_files[1:5])
@@ -494,7 +494,6 @@ column_ha = HeatmapAnnotation(community = community_names,
                               col = list(community = communityColors,
                                           community_inferred = communityColors), border = T
                     )
-pdf("04_Results/Figures/Heatmap_ASVs_aliquots_absolute_abundance.pdf")
 column_split <- community_inferred_names %>% as.factor
 row_split <- treatment_names %>% as.factor
 heatmap_obj = Heatmap(abundance_mat_alq,
@@ -524,9 +523,10 @@ heatmap_obj = Heatmap(abundance_mat_alq,
         cluster_rows = F,
         cluster_columns = F
         )
-draw(heatmap_obj, merge_legend = TRUE)
+pdf("04_Results/Figures/Heatmap_ASVs_aliquots_absolute_abundance.pdf", width = 11, height = 8)
+draw(heatmap_obj, merge_legend = F, heatmap_legend_side = "right", annotation_legend_side = "left")
 dev.off()
-draw(heatmap_obj, merge_legend = TRUE)
+draw(heatmap_obj, merge_legend = F, heatmap_legend_side = "right", annotation_legend_side = "left")
 
 adjusted_copy_numbers_samples <- adjusted_copy_numbers %>%
                                     filter(!grepl("alq", Treatment)) %>%
@@ -557,7 +557,7 @@ column_ha = HeatmapAnnotation(community = community_names,
                               col = list(community = communityColors,
                                           community_inferred = communityColors), border = T
                     )
-pdf("04_Results/Figures/Heatmap_ASVs_absolute_abundance.pdf")
+pdf("04_Results/Figures/Heatmap_ASVs_absolute_abundance.pdf", width = 11, height = 8)
 column_split <- community_inferred_names %>% as.factor
 row_split <- treatment_names %>% as.factor
 heatmap_obj = Heatmap(abundance_mat_samples,
@@ -587,10 +587,11 @@ heatmap_obj = Heatmap(abundance_mat_samples,
         cluster_rows = F,
         cluster_columns = F
         )
-draw(heatmap_obj, merge_legend = TRUE)
+draw(heatmap_obj, merge_legend = F, heatmap_legend_side = "right", annotation_legend_side = "left")
 dev.off()
-draw(heatmap_obj, merge_legend = TRUE)
-
+draw(heatmap_obj, merge_legend = F, heatmap_legend_side = "right", annotation_legend_side = "left")
+```
+```{r}
 df_plot_samples <- adjusted_copy_numbers_samples %>%
   select(OTU, Sample, Treatment, Community_inferred, abs_ab, rel_ab, Genus) %>%
     unique() %>%
@@ -610,7 +611,7 @@ ggplot() +
                y = rel_ab,
                fill = Community_final
               #  fill = factor(Community_final, c("A", "B", "AB"))
-          ), stat = "identity", position = "stack"
+          ), stat = "identity", position = "stack", color = "black", size = 0.1
   ) +
   labs(x = "Sample", y = "Absolute abundance", fill = "Community    ") +
   scale_fill_manual(values = unlist(extend_colors(df_plot_samples$Community_final, communityColors_light, pal = "Spectral"))) +
@@ -620,14 +621,14 @@ ggplot() +
                axis_y_title = 18, guide_nrow = 2,
                y_size = 15,
                x_size = 10)
+    ggsave("04_Results/Figures/per_sample_rel_ab_by_treatment.pdf")
 
 ggplot() +
   geom_bar(data = df_plot_samples,
            aes(x = factor(Sample, ID_order),
                y = rel_ab,
                fill = Community_inferred
-              #  fill = factor(Community_final, c("A", "B", "AB"))
-          ), stat = "identity", position = "stack"
+          ), stat = "identity", position = "stack", color = "black", size = 0.1
   ) +
   labs(x = "Sample", y = "Absolute abundance", fill = "Community    ") +
   scale_fill_manual(values = unlist(extend_colors(df_plot_samples$Community_inferred, communityColors_light, pal = "Spectral"))) +
@@ -637,14 +638,15 @@ ggplot() +
                axis_y_title = 18, guide_nrow = 2,
                y_size = 15,
                x_size = 10)
+    ggsave("04_Results/Figures/per_sample_rel_ab_by_treatment_ambiguous_included.pdf")
 
 ggplot() +
   geom_bar(data = df_plot_samples,
            aes(x = factor(Sample, ID_order),
                y = abs_ab,
-               fill = Community_final
+               fill = Community_inferred
               #  fill = factor(Community_final, c("A", "B", "AB"))
-          ), stat = "identity", position = "stack"
+          ), stat = "identity", position = "stack", color = "black", size = 0.1
   ) +
   labs(x = "Sample", y = "Absolute abundance", fill = "Community    ") +
   scale_fill_manual(values = unlist(extend_colors(df_plot_samples$Community_inferred, communityColors_light, pal = "Spectral"))) +
@@ -655,13 +657,14 @@ ggplot() +
                axis_y_title = 18, guide_nrow = 1,
                y_size = 15,
                x_size = 10)
+    ggsave("04_Results/Figures/per_sample_abs_ab_by_treatment.pdf")
 
 ggplot() +
   geom_bar(data = df_plot_samples,
            aes(x = factor(Treatment, treatment_order),
                y = abs_ab_treatment,
                fill = Community_inferred
-          ), stat = "identity", position = "stack"
+          ), stat = "identity", position = "stack", color = "black", size = 0.1
   ) +
   labs(x = "Sample", y = "Absolute abundance", fill = "Community    ") +
   scale_fill_manual(values = unlist(extend_colors(df_plot_samples$Community_inferred, communityColors_light, greys = F, pal = "Pastel1"))) +
@@ -671,13 +674,14 @@ ggplot() +
                axis_y_title = 18, guide_nrow = 3,
                y_size = 15,
                x_size = 10)
+    ggsave("04_Results/Figures/mean_abs_ab_by_treatment.pdf")
 
 ggplot() +
   geom_bar(data = df_plot_samples,
            aes(x = factor(Treatment, treatment_order),
                y = rel_ab_treatment,
                fill = Community_inferred
-          ), stat = "identity", position = "stack"
+          ), stat = "identity", position = "stack", color = "black", size = 0.1
   ) +
   labs(x = "Sample", y = "Absolute abundance", fill = "Community    ") +
   scale_fill_manual(values = unlist(extend_colors(df_plot_samples$Community_inferred, communityColors_light, greys = F, pal = "Pastel1"))) +
@@ -687,4 +691,5 @@ ggplot() +
                axis_y_title = 18, guide_nrow = 3,
                y_size = 15,
                x_size = 10)
+    ggsave("04_Results/Figures/mean_rel_ab_by_treatment.pdf")
 ```
