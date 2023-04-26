@@ -166,3 +166,88 @@ extend_colors <- function(names_vec, colors_vec, greys = T, pal = "Pastel1"){
   }
   return(final_list) 
 }
+make_col_list <- function(my_vec, my_palette = "Spectral") {
+  uniq_names <- unique(ifelse(is.na(my_vec), 0, my_vec))
+  num_ele <- length(uniq_names)
+  if (num_ele <= 3) {
+    cols_used <- brewer.pal(5, my_palette)[1:num_ele]
+  }
+  if (num_ele <= 9 & num_ele > 3) {
+    cols_used <- brewer.pal(num_ele, my_palette)
+  } else {
+    if (my_palette == "Pastel2") {
+      cols_used <- colorRampPalette(brewer.pal(8, my_palette))(num_ele)
+    } else {
+      cols_used <- colorRampPalette(brewer.pal(9, my_palette))(num_ele)
+    }
+  }
+  col_list <- c(cols_used)
+  names(col_list) = uniq_names
+  return(col_list)
+}
+community_ab <- c("ESL0197")
+community_a <- c("ESL0825","ESL0822","ESL0824","ESL0827","ESL0200","ESL0295","ESL0185","ESL0183","ESL0184","ESL0186")
+community_b <- c("ESL0820", "ESL0170", "ESL0198", "ESL0199", "ESL0819", "ESL0394", "ESL0263", "ESL0262", "ESL0350", "ESL0261")
+get_community <- function(strain_name){
+  if (strain_name %in% community_a) {
+    return("A")
+  }  
+  if (strain_name %in% community_b) {
+    return("B")
+  }  
+  if (strain_name %in% community_ab) {
+    return("AB")
+  }
+  return(NA)
+}
+communityColors <- c("A" = brewer.pal(12, "Paired")[6],
+                     "A_ambiguous" = brewer.pal(12, "Paired")[5],
+                     "B" = brewer.pal(12, "Paired")[2],
+                     "B_ambiguous" = brewer.pal(12, "Paired")[1],
+                     "AB" = brewer.pal(12, "Paired")[4],
+                     "AB_ambiguous" = brewer.pal(12, "Paired")[3],
+                     "unknown" = brewer.pal(12, "Paired")[12]
+                    #  "unknown" = "grey"
+)
+communityColors_light <- c("A" = brewer.pal(11, "Spectral")[1],
+                     "A_ambiguous" = brewer.pal(11, "Spectral")[2],
+                     "B" = brewer.pal(11, "Spectral")[10],
+                     "B_ambiguous" = brewer.pal(11, "Spectral")[9],
+                     "AB" = brewer.pal(11, "Spectral")[4],
+                     "AB_ambiguous" = brewer.pal(11, "Spectral")[5],
+                     "unknown" = brewer.pal(11, "Spectral")[12]
+                    #  "unknown" = "grey"
+)
+infer_community_from_aliquot <- function(OTU_given){
+  # This function accepts an OTU name and checks the object saved under the variable
+  # adjusted_copy_numbers containing absolute and relative abundances
+  treatment_table <- table(treatment_vector)
+  treatment_vector <- adjusted_copy_numbers %>%
+    filter(grepl("alq", Treatment)) %>%
+    filter(OTU == OTU_given) %>%
+      filter(abs_ab > 0) %>%
+      unique %>%
+      pull(Treatment)
+  if ("alq-A" %in% treatment_vector & "alq-B" %in% treatment_vector & "alq-AB" %in% treatment_vector) {
+    if (treatment_table[["alq-B"]] == 3 & treatment_table[["alq-A"]] == 3) {
+      return("AB")
+    } else {
+      return("AB_ambiguous")
+    }
+  }
+  if ("alq-A" %in% treatment_vector & "alq-AB" %in% treatment_vector) {
+    if (treatment_table[["alq-A"]] == 3 & treatment_table[["alq-AB"]] == 1) {
+      return("A")
+    } else {
+      return("A_ambiguous")
+    }
+  }
+  if ("alq-B" %in% treatment_vector & "alq-AB" %in% treatment_vector) {
+    if (treatment_table[["alq-B"]] == 3 & treatment_table[["alq-AB"]] == 1) {
+      return("B")
+    } else {
+      return("B_ambiguous")
+    }
+  }
+  return("unknown")
+}

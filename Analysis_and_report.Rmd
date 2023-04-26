@@ -23,6 +23,7 @@ library(tidyverse)
 library(ggplot2)
 library(readxl)
 library(viridis)
+library(circlize)
 library(hrbrthemes)
 library(ggthemes)
 library(RColorBrewer)
@@ -125,23 +126,40 @@ raw_reads_renamed <- as.character(lapply(ID_order, function(x) get_reads_path(x)
 read_counts_df <- readRDS("RDS/read_counts_df_raw.RDS")
 df_volume_reads <- df_meta_pilot %>%
                     filter(ID %in% ID_order) %>%
-                      select(ID, Volume) %>%
+                      select(ID, Sample, Volume) %>%
                         left_join(read_counts_df)
 ggplot() +
   geom_bar(data = df_volume_reads,
              aes(y = factor(ID, ID_order),
                  x = raw_reads,
-                 fill = factor(Volume, c(5, 10, 15))
+                 fill = factor(Volume, c(15, 10, 5))
          ), stat = "identity"
          ) +
   labs(y = "Sample ID", x = "Number of reads", fill = "Volume added (uL)    ") +
-    scale_x_continuous(trans = "log10", labels = function(x) parse(text=paste("10^",round(log10(x), 2)))) +
+    scale_x_continuous(labels=unit_format(unit = "K", scale = 1e-3)) +
     make_theme(setCol = F, setFill = T, palettecolor = "Pastel1",
                axis_x_title = 18,
                axis_y_title = 18, guide_nrow = 1,
                y_size = 10,
                x_size = 18)
 ggsave("04_Results/Figures/Number_of_reads_by_volume.pdf")
+
+ggplot() +
+  geom_bar(data = df_volume_reads,
+             aes(y = factor(ID, ID_order),
+                 x = raw_reads,
+                 fill = factor(Volume, c(15, 10, 5))
+         ), stat = "identity"
+         ) +
+  labs(y = "Sample ID", x = "Number of reads", fill = "Volume added (uL)    ") +
+    scale_x_continuous(labels=unit_format(unit = "K", scale = 1e-3)) +
+    scale_y_discrete(labels= ID_order %>% as.data.frame() %>% left_join(df_volume_reads, by = c("." = "ID")) %>% pull(Sample)) +
+    make_theme(setCol = F, setFill = T, palettecolor = "Pastel1",
+               axis_x_title = 18, y_hj = 1,
+               axis_y_title = 18, guide_nrow = 1,
+               y_size = 10,
+               x_size = 18)
+ggsave("04_Results/Figures/Number_of_reads_by_volume_labelled_name.pdf")
 ```
 
 # Preprocessing reads
@@ -337,10 +355,11 @@ taxonomy_df <- taxonomySilva %>%
                   left_join(taxonomyCommunity %>%
                               as.data.frame() %>%
                                 mutate(SDP = Genus) %>%
-                                mutate(Community = Species) %>%
+                                mutate(Strain = Species) %>%
                                   select(!c(Genus, Species)) %>%
                                     rownames_to_column("ASV")
-                                )
+                                ) %>%
+                                mutate(Community = Vectorize(get_community)(Strain))
 write.csv(file="04_Results/Taxonomy/Taxonomy.csv", taxonomy_df)
 ```
 
@@ -420,135 +439,252 @@ ps <- readRDS("RDS/phyloseq_object_raw.rds")
 ```
 
 ```{r}
-ps_rel <- transform_sample_counts(ps_raw, function(x) x / sum(x) )
+ps_rel <- transform_sample_counts(ps, function(x) x / sum(x) )
 abundant_taxa <- taxa_sums(ps_rel)[which(taxa_sums(ps_rel) > 0.005)]
 ps_abundant_taxa <- prune_taxa(names(abundant_taxa), ps_rel)
 # plot_bar(ps_abundant_taxa, fill = "Genus")
+# plot_bar(ps_abundant_taxa, fill = "Strain")
 # plot_bar(ps_abundant_taxa, fill = "Community    ")
 ```
 
+Many ASVs appear to be from sequences that are unknown.
+A lot of these "unknown" ASVs are not from contaminants but rather Lactobacillus or Bifidiobacterium.
+These could simply be variants of sequences from sequences genomes which were lost out because of the assembly not distinctly assembling them. This is particularly likely in the case of genomes that are likely to have multiple copies.
+We know from the aliquots being sequenced, which ASVs are from community A and which ASVs are from community B.
+
 ```{r}
-ASV_counts_df <- psmelt(ps_raw) %>%
-  group_by(Sample) %>%
-  mutate(Percentage = Abundance/sum(Abundance)) %>%
-  mutate(Species = paste0(Genus, " ", Species))
+adjusted_copy_numbers <- psmelt(ps) %>% 
+    filter(Abundance > 0) %>%
+    mutate(Species_name = paste0(Genus, " ", Species)) %>%
+    left_join(combined_df %>% select(ID, bac_copies_norm), by = c("Sample" = "ID")) %>%
+    left_join(df_summary %>% filter(grepl("5_", type)) %>% select(ID, reads), by = c("Sample" = "ID")) %>% 
+    unique() %>%
+    mutate(rel_ab = 100*Abundance/reads) %>%
+      mutate(abs_ab = rel_ab*bac_copies_norm/min(bac_copies_norm)*as.numeric(Volume)) %>%
+      arrange(Community, Genus, SDP, Strain)
 
-ASV_counts_df_treatment <- ASV_counts_df %>%
-                            group_by(Treatment, OTU) %>%
-                            mutate(Abundance_treatment = mean(Abundance)) %>%
-                            select(OTU, Treatment, Abundance_treatment, Community) %>%
-                            unique %>%
-                            ungroup() %>%
-                            group_by(Treatment) %>%
-                            mutate(Percentage = Abundance_treatment/sum(Abundance_treatment))
+adjusted_copy_numbers_aliquots <- adjusted_copy_numbers %>%
+                                    filter(grepl("alq", Treatment)) %>%
+                                      mutate(Community_inferred = Vectorize(infer_community_from_aliquot)(OTU))
 
-ASV_counts_df_treatment_no_na <- ASV_counts_df %>%
-                            filter(!is.na(Community)) %>%
-                            group_by(Treatment, OTU) %>%
-                            mutate(Abundance_treatment = mean(Abundance)) %>%
-                            select(OTU, Treatment, Abundance_treatment, Community) %>%
-                            unique %>%
-                            ungroup() %>%
-                            group_by(Treatment) %>%
-                            mutate(Percentage = Abundance_treatment/sum(Abundance_treatment))
+abundance_mat_alq <- adjusted_copy_numbers_aliquots %>%
+                      select(sample_Sample, OTU, abs_ab) %>%
+                        unique %>%
+                        pivot_wider(names_from = OTU, values_from = abs_ab, values_fn = as.numeric) %>%
+                        replace(is.na(.), 0) %>%
+                        column_to_rownames("sample_Sample") %>%
+                        as.matrix
+                    
+treatment_names <- rownames(abundance_mat_alq) %>% as.data.frame() %>% left_join(psmelt(ps) %>% ungroup() %>% select(sample_Sample, Treatment) %>% unique, by = c(. = "sample_Sample")) %>% pull(Treatment)
+genus_names <- colnames(abundance_mat_alq) %>% as.data.frame() %>% left_join(psmelt(ps) %>% ungroup() %>% select(OTU, Genus) %>% unique, by = c(. = "OTU")) %>% pull(Genus)
+SDP_names <- colnames(abundance_mat_alq) %>% as.data.frame() %>% left_join(psmelt(ps) %>% ungroup() %>% select(OTU, SDP) %>% unique, by = c(. = "OTU")) %>% pull(SDP)
+strain_name <- colnames(abundance_mat_alq) %>% as.data.frame() %>% left_join(psmelt(ps) %>% ungroup() %>% select(OTU, SDP, Strain) %>% unique %>% mutate(Strain_name = paste0(SDP, "--", Strain)), by = c(. = "OTU")) %>% pull(Strain_name)
+column_ba = HeatmapAnnotation(SDP = SDP_names,
+                              Genus = genus_names,
+                              Strain = strain_name,
+                       col = list(SDP = make_col_list(SDP_names, "Spectral"),
+                                  Genus = make_col_list(genus_names, "Set1"),
+                                  Strain = make_col_list(strain_name, "Pastel1")
+                       ), border = T
+                    )
+community_names <- colnames(abundance_mat_alq) %>% as.data.frame() %>% left_join(psmelt(ps_raw) %>% ungroup() %>% select(OTU, Community) %>% unique, by = c(. = "OTU")) %>% pull(Community)
+community_inferred_names <- colnames(abundance_mat_alq) %>% as.data.frame() %>% left_join(adjusted_copy_numbers_aliquots %>% ungroup() %>% select(OTU, Community_inferred) %>% unique, by = c(. = "OTU")) %>% pull(Community_inferred)
+column_ha = HeatmapAnnotation(community = community_names,
+                              community_inferred = community_inferred_names,
+                              col = list(community = communityColors,
+                                          community_inferred = communityColors), border = T
+                    )
+pdf("04_Results/Figures/Heatmap_ASVs_aliquots_absolute_abundance.pdf")
+column_split <- community_inferred_names %>% as.factor
+row_split <- treatment_names %>% as.factor
+heatmap_obj = Heatmap(abundance_mat_alq,
+        col = colorRamp2(c(0, 1000, 10000, 100000, 1000000, 1000000, 10000000), 
+                         colors = c(brewer.pal(9, "GnBu")[1],
+                                    brewer.pal(9, "GnBu")[2],
+                                    brewer.pal(9, "GnBu")[3],
+                                    brewer.pal(9, "GnBu")[4],
+                                    brewer.pal(9, "GnBu")[7],
+                                    brewer.pal(9, "GnBu")[8],
+                                    brewer.pal(9, "GnBu")[9]
+                                    )
+                                  ),
+        column_split = column_split,
+        row_split = row_split,
+        row_title_rot = 0,
+        column_title_rot = 45,
+        # column_title_gp = grid::gpar(fontsize = 0),
+        # row_title_gp = grid::gpar(fontsize = 0),
+        border = T,
+        heatmap_legend_param = list(title = "Absolute Abundance"),
+        top_annotation = column_ha, 
+        # right_annotation = row_ha,
+        bottom_annotation = column_ba,
+        column_names_gp = grid::gpar(fontsize = 0),
+        row_names_gp = grid::gpar(fontsize = 10),
+        cluster_rows = F,
+        cluster_columns = F
+        )
+draw(heatmap_obj, merge_legend = TRUE)
+dev.off()
+draw(heatmap_obj, merge_legend = TRUE)
+
+adjusted_copy_numbers_samples <- adjusted_copy_numbers %>%
+                                    filter(!grepl("alq", Treatment)) %>%
+                                    unique() %>%
+                                      left_join(adjusted_copy_numbers_aliquots %>% select(OTU, Community_inferred), by = "OTU")
+
+abundance_mat_samples <- adjusted_copy_numbers_samples %>%
+                      select(Sample, OTU, abs_ab) %>%
+                        unique %>%
+                        pivot_wider(names_from = OTU, values_from = abs_ab, values_fn = as.numeric) %>%
+                        replace(is.na(.), 0) %>%
+                        column_to_rownames("Sample") %>%
+                        as.matrix                             
+treatment_names <- rownames(abundance_mat_samples) %>% as.data.frame() %>% left_join(psmelt(ps) %>% ungroup() %>% select(Sample, Treatment) %>% unique, by = c(. = "Sample")) %>% pull(Treatment)
+genus_names <- colnames(abundance_mat_samples) %>% as.data.frame() %>% left_join(psmelt(ps) %>% ungroup() %>% select(OTU, Genus) %>% unique, by = c(. = "OTU")) %>% pull(Genus)
+SDP_names <- colnames(abundance_mat_samples) %>% as.data.frame() %>% left_join(psmelt(ps) %>% ungroup() %>% select(OTU, SDP) %>% unique, by = c(. = "OTU")) %>% pull(SDP)
+strain_name <- colnames(abundance_mat_samples) %>% as.data.frame() %>% left_join(psmelt(ps) %>% ungroup() %>% select(OTU, SDP, Strain) %>% unique %>% mutate(Strain_name = paste0(SDP, "--", Strain)), by = c(. = "OTU")) %>% pull(Strain_name)
+column_ba = HeatmapAnnotation(SDP = SDP_names,
+                              Genus = genus_names,
+                       col = list(SDP = make_col_list(SDP_names, "Spectral"),
+                                  Genus = make_col_list(genus_names, "Set1")
+                       ), border = T
+                    )
+community_names <- colnames(abundance_mat_samples) %>% as.data.frame() %>% left_join(psmelt(ps_raw) %>% ungroup() %>% select(OTU, Community) %>% unique, by = c(. = "OTU")) %>% pull(Community)
+community_inferred_names <- colnames(abundance_mat_samples) %>% as.data.frame() %>% left_join(adjusted_copy_numbers_aliquots %>% ungroup() %>% select(OTU, Community_inferred) %>% unique, by = c(. = "OTU")) %>% pull(Community_inferred)
+column_ha = HeatmapAnnotation(community = community_names,
+                              community_inferred = community_inferred_names,
+                              col = list(community = communityColors,
+                                          community_inferred = communityColors), border = T
+                    )
+pdf("04_Results/Figures/Heatmap_ASVs_absolute_abundance.pdf")
+column_split <- community_inferred_names %>% as.factor
+row_split <- treatment_names %>% as.factor
+heatmap_obj = Heatmap(abundance_mat_samples,
+        col = colorRamp2(c(0, 1000, 10000, 100000, 1000000, 1000000, 10000000), 
+                         colors = c(brewer.pal(9, "GnBu")[1],
+                                    brewer.pal(9, "GnBu")[2],
+                                    brewer.pal(9, "GnBu")[3],
+                                    brewer.pal(9, "GnBu")[4],
+                                    brewer.pal(9, "GnBu")[7],
+                                    brewer.pal(9, "GnBu")[8],
+                                    brewer.pal(9, "GnBu")[9]
+                                    )
+                                  ),
+        column_split = column_split,
+        row_split = row_split,
+        row_title_rot = 0,
+        column_title_rot = 45,
+        # column_title_gp = grid::gpar(fontsize = 0),
+        # row_title_gp = grid::gpar(fontsize = 0),
+        border = T,
+        heatmap_legend_param = list(title = "Absolute Abundance"),
+        top_annotation = column_ha, 
+        # right_annotation = row_ha,
+        bottom_annotation = column_ba,
+        column_names_gp = grid::gpar(fontsize = 0),
+        row_names_gp = grid::gpar(fontsize = 10),
+        cluster_rows = F,
+        cluster_columns = F
+        )
+draw(heatmap_obj, merge_legend = TRUE)
+dev.off()
+draw(heatmap_obj, merge_legend = TRUE)
+
+df_plot_samples <- adjusted_copy_numbers_samples %>%
+  select(OTU, Sample, Treatment, Community_inferred, abs_ab, rel_ab, Genus) %>%
+    unique() %>%
+    mutate(Community_final = ifelse(Community_inferred == "B_ambiguous", "ambiguous", Community_inferred)) %>%
+    mutate(Community_final = ifelse(Community_inferred == "AB_ambiguous", "ambiguous", Community_final)) %>%
+    mutate(Community_final = ifelse(Community_inferred == "A_ambiguous", "ambiguous", Community_final)) %>%
+    mutate(Community_final = ifelse(Community_inferred == "unknown", Genus, Community_final)) %>%
+      group_by(OTU, Treatment) %>%
+        mutate(abs_ab_treatment = mean(abs_ab)) %>%
+        ungroup() %>%
+        group_by(Treatment) %>%
+        mutate(rel_ab_treatment = abs_ab_treatment/sum(abs_ab_treatment)*100)
 
 ggplot() +
-  geom_bar(data = ASV_counts_df_treatment,
-           aes(x = Treatment,
-               y = Abundance_treatment,
-               fill = Community),
-           stat = "identity", position = "stack", color = "black", size = 0.1
-           ) +
-  labs(x = "Sample", y = "Count", fill = "Community   ") +
-  scale_fill_manual(values = c(brewer.pal(9, "Spectral")[1],
-                               brewer.pal(9, "Spectral")[8],
-                               brewer.pal(9, "Spectral")[9],
-                               "grey"
-                              ), label = c("A", "A and B", "B", "Unassigned")
-                   ) +
-    make_theme(setFill = F, palettefill = "Spectral", leg_size = 12, guide_nrow = 2,
-               max_colors = 9,
-               x_angle = 30, x_hj = 1, x_vj = 1
-      )
-      ggsave("04_Results/Figures/Community_abd_by_treatment_withNAs.pdf")
+  geom_bar(data = df_plot_samples,
+           aes(x = factor(Sample, ID_order),
+               y = rel_ab,
+               fill = Community_final
+              #  fill = factor(Community_final, c("A", "B", "AB"))
+          ), stat = "identity", position = "stack"
+  ) +
+  labs(x = "Sample", y = "Absolute abundance", fill = "Community    ") +
+  scale_fill_manual(values = unlist(extend_colors(df_plot_samples$Community_final, communityColors_light, pal = "Spectral"))) +
+  facet_wrap(~Treatment, scale = "free_x") +
+    make_theme(setCol = F, setFill = F, palettecolor = "Pastel1",
+               axis_x_title = 18,
+               axis_y_title = 18, guide_nrow = 2,
+               y_size = 15,
+               x_size = 10)
 
 ggplot() +
-  geom_bar(data = ASV_counts_df,
-           aes(x = Sample,
-               y = Abundance,
-               fill = Community),
-           stat = "identity", position = "stack", color = "black", size = 0.1
-           ) +
-  labs(x = "Sample", y = "Count", fill = "Community    ") +
-  scale_fill_manual(values = c(brewer.pal(9, "Spectral")[1],
-                               brewer.pal(9, "Spectral")[8],
-                               brewer.pal(9, "Spectral")[9],
-                               "grey"
-                              ), label = c("A", "A and B", "B", "Unassigned")
-                   ) +
-    make_theme(setFill = F, palettefill = "Spectral", leg_size = 12, guide_nrow = 1,
-               max_colors = 9,
-               x_angle = 30, x_hj = 1, x_vj = 1
-      )
-      ggsave("04_Results/Figures/Community_abd_by_treatment_withNAs.pdf")
+  geom_bar(data = df_plot_samples,
+           aes(x = factor(Sample, ID_order),
+               y = rel_ab,
+               fill = Community_inferred
+              #  fill = factor(Community_final, c("A", "B", "AB"))
+          ), stat = "identity", position = "stack"
+  ) +
+  labs(x = "Sample", y = "Absolute abundance", fill = "Community    ") +
+  scale_fill_manual(values = unlist(extend_colors(df_plot_samples$Community_inferred, communityColors_light, pal = "Spectral"))) +
+  facet_wrap(~Treatment, scale = "free_x") +
+    make_theme(setCol = F, setFill = F, palettecolor = "Pastel1",
+               axis_x_title = 18,
+               axis_y_title = 18, guide_nrow = 2,
+               y_size = 15,
+               x_size = 10)
 
 ggplot() +
-  geom_bar(data = ASV_counts_df,
-           aes(x = Sample,
-               y = Percentage,
-               fill = Community),
-           stat = "identity", position = "stack", color = "black", size = 0.1
-           ) +
-  labs(x = "Sample", y = "Count", fill = "Community    ") +
-  scale_fill_manual(values = c(brewer.pal(9, "Spectral")[1],
-                               brewer.pal(9, "Spectral")[8],
-                               brewer.pal(9, "Spectral")[9],
-                               "grey"
-                              ), label = c("A", "A and B", "B", "Unassigned")
-                   ) +
-    make_theme(setFill = F, palettefill = "Spectral", leg_size = 12, guide_nrow = 1,
-               max_colors = 9,
-               x_angle = 30, x_hj = 1, x_vj = 1
-      )
-      ggsave("04_Results/Figures/Community_abd_percentage_by_sample_withNAs.pdf")
+  geom_bar(data = df_plot_samples,
+           aes(x = factor(Sample, ID_order),
+               y = abs_ab,
+               fill = Community_final
+              #  fill = factor(Community_final, c("A", "B", "AB"))
+          ), stat = "identity", position = "stack"
+  ) +
+  labs(x = "Sample", y = "Absolute abundance", fill = "Community    ") +
+  scale_fill_manual(values = unlist(extend_colors(df_plot_samples$Community_inferred, communityColors_light, pal = "Spectral"))) +
+  facet_wrap(~Treatment, scale = "free_x") +
+    # scale_y_continuous(labels = function(x) parse(text=paste("10^",x))) +
+    make_theme(setCol = F, setFill = F, palettecolor = "Pastel1",
+               axis_x_title = 18,
+               axis_y_title = 18, guide_nrow = 1,
+               y_size = 15,
+               x_size = 10)
 
 ggplot() +
-  geom_bar(data = ASV_counts_df_treatment,
-           aes(x = Treatment,
-               y = Percentage,
-               fill = Community),
-           stat = "identity", position = "stack", color = "black", size = 0.1
-           ) +
-  labs(x = "Sample", y = "Count", fill = "Community    ") +
-  scale_fill_manual(values = c(brewer.pal(9, "Spectral")[1],
-                               brewer.pal(9, "Spectral")[8],
-                               brewer.pal(9, "Spectral")[9],
-                               "grey"
-                              ), label = c("A", "A and B", "B", "Unassigned")
-                   ) +
-    make_theme(setFill = F, palettefill = "Spectral", leg_size = 12, guide_nrow = 1,
-               max_colors = 9,
-               x_angle = 30, x_hj = 1, x_vj = 1
-      )
-      ggsave("04_Results/Figures/Community_abd_percentage_by_treatment_withNAs.pdf")
+  geom_bar(data = df_plot_samples,
+           aes(x = factor(Treatment, treatment_order),
+               y = abs_ab_treatment,
+               fill = Community_inferred
+          ), stat = "identity", position = "stack"
+  ) +
+  labs(x = "Sample", y = "Absolute abundance", fill = "Community    ") +
+  scale_fill_manual(values = unlist(extend_colors(df_plot_samples$Community_inferred, communityColors_light, greys = F, pal = "Pastel1"))) +
+    # scale_y_continuous(labels = function(x) parse(text=paste("10^",x))) +
+    make_theme(setCol = F, setFill = F,
+               axis_x_title = 18,
+               axis_y_title = 18, guide_nrow = 3,
+               y_size = 15,
+               x_size = 10)
 
 ggplot() +
-  geom_bar(data = ASV_counts_df_treatment_no_na,
-           aes(x = Treatment,
-               y = Percentage,
-               fill = Community),
-           stat = "identity", position = "stack", color = "black", size = 0.1
-           ) +
-  labs(x = "Sample", y = "Count", fill = "Community    ") +
-  scale_fill_manual(values = c(brewer.pal(9, "Spectral")[1],
-                               brewer.pal(9, "Spectral")[8],
-                               brewer.pal(9, "Spectral")[9],
-                               "grey"
-                              ), label = c("A", "A and B", "B", "Unassigned")
-                   ) +
-    make_theme(setFill = F, palettefill = "Spectral", leg_size = 12, guide_nrow = 1,
-               max_colors = 9,
-               x_angle = 30, x_hj = 1, x_vj = 1
-      )
-      ggsave("04_Results/Figures/Community_abd_percentage_by_treatment.pdf")
+  geom_bar(data = df_plot_samples,
+           aes(x = factor(Treatment, treatment_order),
+               y = rel_ab_treatment,
+               fill = Community_inferred
+          ), stat = "identity", position = "stack"
+  ) +
+  labs(x = "Sample", y = "Absolute abundance", fill = "Community    ") +
+  scale_fill_manual(values = unlist(extend_colors(df_plot_samples$Community_inferred, communityColors_light, greys = F, pal = "Pastel1"))) +
+    # scale_y_continuous(labels = function(x) parse(text=paste("10^",x))) +
+    make_theme(setCol = F, setFill = F,
+               axis_x_title = 18,
+               axis_y_title = 18, guide_nrow = 3,
+               y_size = 15,
+               x_size = 10)
 ```
