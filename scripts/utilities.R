@@ -117,27 +117,28 @@ get_number_assigned <- function(rank_name) {
     return(num_ASVs)
   }
 }
-genusColors <- c("Bombilactobacillus" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[1], "#FFFFFF"))(10), -1)[1],
-                    "Lactobacillus" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[1], "#FFFFFF"))(10), -1)[4],
-                    "Bifidobacterium" = brewer.pal(11, "Spectral")[3],
-                    "Gilliamella" = brewer.pal(11, "Spectral")[11],
-                    "Frischella" = brewer.pal(11, "Spectral")[8],
-                    "Bartonella" = brewer.pal(11, "Spectral")[7],
-                    "Snodgrassella" = brewer.pal(11, "Spectral")[10],
-                    "Apibacter" = brewer.pal(11, "Spectral")[4],
-                    "Commensalibacter" = brewer.pal(11, "Spectral")[6],
-                    "Bombella" = brewer.pal(11, "Spectral")[5],
-                    "Apilactobacillus" = brewer.pal(11, "Spectral")[9],
-                    "Dysgonomonas" = brewer.pal(11, "Spectral")[2],
-                    "Spiroplasma" = brewer.pal(8, "Set1")[8],
-                    "WRHT01" = brewer.pal(8, "Dark2")[3],
-                    "Pectinatus" = brewer.pal(8, "Dark2")[1],
-                    "Enterobacter" = head(colorRampPalette(c(brewer.pal(11, "BrBG")[2], "#FFFFFF"))(10), -1)[1],
-                    "Zymobacter" = head(colorRampPalette(c(brewer.pal(11, "BrBG")[2], "#FFFFFF"))(10), -1)[2],
-                    "Entomomonas"= head(colorRampPalette(c(brewer.pal(11, "BrBG")[2], "#FFFFFF"))(10), -1)[4],
-                    "Saezia" = head(colorRampPalette(c(brewer.pal(11, "BrBG")[2], "#FFFFFF"))(10), -1)[6],
-                    "Parolsenella" = head(colorRampPalette(c(brewer.pal(11, "BrBG")[2], "#FFFFFF"))(10), -1)[8]
-)
+unique(genus_names)
+# genusColors <- c("Bombilactobacillus" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[1], "#FFFFFF"))(10), -1)[1],
+#                     "Lactobacillus" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[1], "#FFFFFF"))(10), -1)[4],
+#                     "Bifidobacterium" = brewer.pal(11, "Spectral")[3],
+#                     "Gilliamella" = brewer.pal(11, "Spectral")[11],
+#                     "Frischella" = brewer.pal(11, "Spectral")[8],
+#                     "Bartonella" = brewer.pal(11, "Spectral")[7],
+#                     "Snodgrassella" = brewer.pal(11, "Spectral")[10],
+#                     "Apibacter" = brewer.pal(11, "Spectral")[4],
+#                     "Commensalibacter" = brewer.pal(11, "Spectral")[6],
+#                     "Bombella" = brewer.pal(11, "Spectral")[5],
+#                     "Apilactobacillus" = brewer.pal(11, "Spectral")[9],
+#                     "Dysgonomonas" = brewer.pal(11, "Spectral")[2],
+#                     "Spiroplasma" = brewer.pal(8, "Set1")[8],
+#                     "WRHT01" = brewer.pal(8, "Dark2")[3],
+#                     "Pectinatus" = brewer.pal(8, "Dark2")[1],
+#                     "Enterobacter" = head(colorRampPalette(c(brewer.pal(11, "BrBG")[2], "#FFFFFF"))(10), -1)[1],
+#                     "Zymobacter" = head(colorRampPalette(c(brewer.pal(11, "BrBG")[2], "#FFFFFF"))(10), -1)[2],
+#                     "Entomomonas"= head(colorRampPalette(c(brewer.pal(11, "BrBG")[2], "#FFFFFF"))(10), -1)[4],
+#                     "Saezia" = head(colorRampPalette(c(brewer.pal(11, "BrBG")[2], "#FFFFFF"))(10), -1)[6],
+#                     "Parolsenella" = head(colorRampPalette(c(brewer.pal(11, "BrBG")[2], "#FFFFFF"))(10), -1)[8]
+# )
 extend_colors <- function(names_vec, colors_vec, greys = T, pal = "Pastel1"){
   final_list <- c()
   if (greys) {
@@ -221,13 +222,13 @@ communityColors_light <- c("A" = brewer.pal(11, "Spectral")[1],
 infer_community_from_aliquot <- function(OTU_given){
   # This function accepts an OTU name and checks the object saved under the variable
   # adjusted_copy_numbers containing absolute and relative abundances
-  treatment_table <- table(treatment_vector)
   treatment_vector <- adjusted_copy_numbers %>%
     filter(grepl("alq", Treatment)) %>%
     filter(OTU == OTU_given) %>%
       filter(abs_ab > 0) %>%
       unique %>%
       pull(Treatment)
+  treatment_table <- table(treatment_vector)
   if ("alq-A" %in% treatment_vector & "alq-B" %in% treatment_vector & "alq-AB" %in% treatment_vector) {
     if (treatment_table[["alq-B"]] == 3 & treatment_table[["alq-A"]] == 3) {
       return("AB")
@@ -251,3 +252,62 @@ infer_community_from_aliquot <- function(OTU_given){
   }
   return("unknown")
 }
+strainColors <- c("bifido_1.1--ESL0825" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[6], "#FFFFFF"))(5), -1)[1],
+                  "bifido_1.1--ESL0820" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[6], "#FFFFFF"))(5), -1)[3],
+                  "bifido_1.3--ESL0822" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[7], "#FFFFFF"))(5), -1)[1],
+                  "bifido_1.3--ESL0170" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[7], "#FFFFFF"))(5), -1)[3],  
+                  "bifido_1.4.2--ESL0827" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[9], "#FFFFFF"))(5), -1)[1],
+                  "bifido_1.4.2--ESL0199" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[9], "#FFFFFF"))(5), -1)[3],
+                  "bifido_1.4.1--ESL0198" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[8], "#FFFFFF"))(5), -1)[1],
+                  "bifido_1.5--ESL0200" =  head(colorRampPalette(c(brewer.pal(11, "Spectral")[10], "#FFFFFF"))(5), -1)[1],
+                  "bifido_1.5--ESL0819" =  head(colorRampPalette(c(brewer.pal(11, "Spectral")[10], "#FFFFFF"))(5), -1)[3],
+                  "bifido_2--ESL0197" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[11], "#FFFFFF"))(5), -1)[1],
+                  "firm4_1--ESL0295" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[1], "#FFFFFF"))(5), -1)[1],
+                  "firm5_1--ESL0185" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[2], "#FFFFFF"))(5), -1)[1],
+                  "firm5_1--ESL0263" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[2], "#FFFFFF"))(5), -1)[3],
+                  "firm5_2--ESL0262" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[3], "#FFFFFF"))(5), -1)[1],
+                  "firm5_2--ESL0183" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[3], "#FFFFFF"))(5), -1)[3],
+                  "firm5_3--ESL0184" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[4], "#FFFFFF"))(5), -1)[1],
+                  "firm5_4--ESL0186" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[5], "#FFFFFF"))(5), -1)[1],
+                  "firm5_4--ESL0261"= head(colorRampPalette(c(brewer.pal(11, "Spectral")[5], "#FFFFFF"))(5), -1)[3],
+                  "NA--NA" = "grey"
+)
+SDPColors <- c("bifido_1.1" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[6], "#FFFFFF"))(5), -1)[1],
+               "bifido_1.3" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[7], "#FFFFFF"))(5), -1)[1],
+               "bifido_1.4.1" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[8], "#FFFFFF"))(5), -1)[1],
+               "bifido_1.4.2" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[9], "#FFFFFF"))(5), -1)[1],
+               "bifido_1.5" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[10], "#FFFFFF"))(5), -1)[1],
+               "bifido_2" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[11], "#FFFFFF"))(5), -1)[1],
+               "firm4_1" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[1], "#FFFFFF"))(5), -1)[1],
+               "firm5_1" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[2], "#FFFFFF"))(5), -1)[1],
+               "firm5_2" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[3], "#FFFFFF"))(5), -1)[1],
+               "firm5_3" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[4], "#FFFFFF"))(5), -1)[1],
+               "firm5_4" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[5], "#FFFFFF"))(5), -1)[1]
+)
+speciesColors <- c("Bifidobacterium asteroides" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[8], "#FFFFFF"))(5), -1)[1],
+    "Bifidobacterium indicum" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[7], "#FFFFFF"))(7), -1)[1],
+    "Lactobacillus mellis" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[1], "#FFFFFF"))(5), -1)[1],
+    "Lactobacillus apis" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[2], "#FFFFFF"))(5), -1)[1],
+    "Lactobacillus helsingborgensis" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[3], "#FFFFFF"))(5), -1)[1],
+    "Lactobacillus kullabergensis" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[4], "#FFFFFF"))(5), -1)[1],
+    "Lactobacillus NA" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[5], "#FFFFFF"))(5), -1)[1],
+    "Escherichia-Shigella NA" = brewer.pal(11, "Set3")[8],
+    "Paracoccus marinus" = brewer.pal(11, "Set3")[3],
+    "Moraxella osloensis" = brewer.pal(11, "Set3")[6],
+    "Bradyrhizobium elkanii" = brewer.pal(11, "Set3")[7]
+)
+genusColors <- c("Bifidobacterium" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[8], "#FFFFFF"))(5), -1)[1],
+                 "Lactobacillus" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[1], "#FFFFFF"))(5), -1)[1],
+                 "Acidiphilium" = brewer.pal(11, "Set3")[9],
+                 "Acinetobacter" = brewer.pal(11, "Set3")[10],
+                 "Bradyrhizobium" = brewer.pal(11, "Set3")[7],
+                 "Candidatus Methylopumilus" = brewer.pal(11, "Set3")[11],
+                 "Cutibacterium" = brewer.pal(11, "Set3")[2],
+                 "Delftia" = brewer.pal(11, "Set3")[3],
+                 "Escherichia-Shigella" = brewer.pal(11, "Set3")[8],
+                 "Janthinobacterium" = brewer.pal(11, "Set3")[4],
+                 "Pedobacter" = brewer.pal(11, "Set3")[5],
+                 "Pelomonas" = brewer.pal(11, "Set3")[6],
+                 "Ralstonia" = brewer.pal(11, "Set3")[1],
+                 "Staphylococcus" = brewer.pal(12, "Set3")[12]
+)

@@ -78,10 +78,10 @@ ID_order <- c("2-1", "2-13", "3-1", "3-13", "1-1",
               "3-22", "1-13", "1-14", "1-15", "1-19",
               "1-16","1-17", "1-18", "1-20", "1-21", "1-22"
               )
-system("mkdir -p Figures")
-system("mkdir -p RDS")
 system("mkdir -p 03_Dada2Preprocessed")
 system("mkdir -p 04_Results")
+system("mkdir -p 04_Results/Figures")
+system("mkdir -p 04_Results/RDS")
 system("mkdir -p 04_Results/Taxonomy")
 ```
 
@@ -123,7 +123,7 @@ raw_reads_renamed <- as.character(lapply(ID_order, function(x) get_reads_path(x)
 #                     mutate(raw_reads = Vectorize(get_number_of_reads)(raw_reads_path)) %>%
 #                     select(!raw_reads_path)
 # saveRDS(read_counts_df, "RDS/read_counts_df_raw.RDS")
-read_counts_df <- readRDS("RDS/read_counts_df_raw.RDS")
+read_counts_df <- readRDS("04_Results/RDS/read_counts_df_raw.RDS")
 df_volume_reads <- df_meta_pilot %>%
                     filter(ID %in% ID_order) %>%
                       select(ID, Sample, Volume) %>%
@@ -181,7 +181,7 @@ r_primer_comp <- rc(r_primer)
 #               primer.rev = r_primer_comp,
 #               verbose = TRUE)
 # saveRDS(primer_removal_summary, "RDS/primer_removal_summary.rds")
-primer_removal_summary <- readRDS("RDS/primer_removal_summary.rds")
+primer_removal_summary <- readRDS("04_Results/RDS/primer_removal_summary.rds")
 ```
 
 ## Filter reads based on length
@@ -194,7 +194,7 @@ The step to get read lengths takes a long time so save the output and reload for
 ```{r}
 # read_lengths <- lapply(raw_reads_renamed, function(x) nchar(getSequences(x)))
 # saveRDS(read_lengths, "RDS/read_lengths.rds")
-read_lengths <- readRDS("RDS/read_lengths.rds")
+read_lengths <- readRDS("04_Results/RDS/read_lengths.rds")
 pdf("04_Results/Figures/Read_length_histogram.pdf", width = 11, height = 8)
 hist(do.call(c, read_lengths), 100)
 dev.off()
@@ -210,7 +210,7 @@ This has already bee performed and will not be repeated when knitting.
 filt_read_files <- as.character(lapply(ID_order, function(x) paste0("03_Dada2Preprocessed/", x, "_filt_reads.fastq.gz")))
 # trimming_summary <- filterAndTrim(primer_remove_out_files, filt_read_files, minLen=1000, maxLen=1600, rm.phix=FALSE, multithread=T)
 # saveRDS(trimming_summary, "RDS/trimming_summary.rds")
-trimming_summary <- readRDS("RDS/trimming_summary.rds")
+trimming_summary <- readRDS("04_Results/RDS/trimming_summary.rds")
 ```
 
 ### Read length distribution after
@@ -218,7 +218,7 @@ trimming_summary <- readRDS("RDS/trimming_summary.rds")
 ```{r}
 # read_lengths_filt <- lapply(filt_read_files, function(x) nchar(getSequences(x)))
 # saveRDS(read_lengths_filt, "RDS/read_lengths_filt.rds")
-read_lengths_filt <- readRDS("RDS/read_lengths_filt.rds")
+read_lengths_filt <- readRDS("04_Results/RDS/read_lengths_filt.rds")
 pdf("04_Results/Figures/Read_length_filtered_histogram.pdf", width = 11, height = 8)
 hist(do.call(c, read_lengths_filt), 100)
 dev.off()
@@ -240,11 +240,11 @@ plotQualityProfile(filt_read_files[1:5])
 # derepd <- derepFastq(filt_read_files, verbose = T)
 # errors <- learnErrors(derepd, errorEstimationFunction=PacBioErrfun, BAND_SIZE=32, multithread=TRUE)
 # saveRDS(errors, "RDS/errors.rds")
-errors <- readRDS("RDS/errors.rds")
+errors <- readRDS("04_Results/RDS/errors.rds")
 plotErrors(errors)
 # dada2 <- dada(derepd, err=errors, BAND_SIZE=32, multithread=T)
 # saveRDS(dada2, "RDS/dada2.rds")
-dada2 <- readRDS("RDS/dada2.rds")
+dada2 <- readRDS("04_Results/RDS/dada2.rds")
 seqtable <- makeSequenceTable(dada2); dim(seqtable)
 seqtable_nochim <- removeBimeraDenovo(seqtable, method = "consensus", multithread = TRUE, verbose = TRUE); dim(seqtable)
 sum(seqtable_nochim)/sum(seqtable)
@@ -254,26 +254,28 @@ sum(seqtable_nochim)/sum(seqtable)
 ## Summarise pre-processing
 
 ```{r}
-df_summary <- primer_removal_summary %>% as.data.frame() %>%
-                mutate(ID = Vectorize(remove_extension)(rownames(.), "_reads.fastq.gz")) %>%
-                   pivot_longer(!ID, values_to = "reads", names_to = "type") %>%
-                    mutate(type = ifelse(type == "reads.in", "0_Raw.reads", "1_Primer.removed")) %>%
-                      left_join(df_meta_pilot, by = c("ID" = "ID"))
-df_summary_trimming <- trimming_summary %>% as.data.frame %>% 
-                                  mutate(ID = Vectorize(remove_extension)(rownames(.), "_primers_removed.fastq.gz")) %>%
-                                  pivot_longer(!ID, values_to = "reads", names_to = "type") %>%
-                                  mutate(type = ifelse(type == "reads.in", "Trimming.in", "2_Trimmed")) %>%
-                                  left_join(df_meta_pilot, by = c("ID" = "ID")) %>%
-                                  filter(type != "Trimming.in")
-dada_denoise_summary <- data.frame("V1" = sapply(dada2, function(x) sum(getUniques(x))) %>% as.matrix) %>%
-                          mutate("4_Denoised" = V1) %>% select(!V1) %>%
-                          cbind("5_No.chimera" = rowSums(seqtable_nochim)) %>%
-                          mutate(ID = Vectorize(remove_extension)(rownames(.), "_filt_reads.fastq.gz")) %>%
-                            pivot_longer(!ID, values_to = "reads", names_to = "type")
-df_summary <- bind_rows(rbind(df_summary, df_summary_trimming), dada_denoise_summary) %>%
-                select(ID, type, reads) %>%
-                left_join(df_meta_pilot %>% select(ID, Treatment)) %>%
-                mutate(Treatment_type = ifelse(grepl("alq", Treatment), "aliquot", Treatment))
+# df_summary <- primer_removal_summary %>% as.data.frame() %>%
+#                 mutate(ID = Vectorize(remove_extension)(rownames(.), "_reads.fastq.gz")) %>%
+#                    pivot_longer(!ID, values_to = "reads", names_to = "type") %>%
+#                     mutate(type = ifelse(type == "reads.in", "0_Raw.reads", "1_Primer.removed")) %>%
+#                       left_join(df_meta_pilot, by = c("ID" = "ID"))
+# df_summary_trimming <- trimming_summary %>% as.data.frame %>% 
+#                                   mutate(ID = Vectorize(remove_extension)(rownames(.), "_primers_removed.fastq.gz")) %>%
+#                                   pivot_longer(!ID, values_to = "reads", names_to = "type") %>%
+#                                   mutate(type = ifelse(type == "reads.in", "Trimming.in", "2_Trimmed")) %>%
+#                                   left_join(df_meta_pilot, by = c("ID" = "ID")) %>%
+#                                   filter(type != "Trimming.in")
+# dada_denoise_summary <- data.frame("V1" = sapply(dada2, function(x) sum(getUniques(x))) %>% as.matrix) %>%
+#                           mutate("4_Denoised" = V1) %>% select(!V1) %>%
+#                           cbind("5_No.chimera" = rowSums(seqtable_nochim)) %>%
+#                           mutate(ID = Vectorize(remove_extension)(rownames(.), "_filt_reads.fastq.gz")) %>%
+#                             pivot_longer(!ID, values_to = "reads", names_to = "type")
+# df_summary <- bind_rows(rbind(df_summary, df_summary_trimming), dada_denoise_summary) %>%
+#                 select(ID, type, reads) %>%
+#                 left_join(df_meta_pilot %>% select(ID, Treatment)) %>%
+#                 mutate(Treatment_type = ifelse(grepl("alq", Treatment), "aliquot", Treatment))
+# saveRDS(df_summary, "04_Results/RDS/df_summary.rds")
+df_summary <- readRDS("04_Results/RDS/df_summary.rds")
 
 ggplot() +
   geom_bar(data = df_summary,
@@ -289,21 +291,6 @@ ggplot() +
   labs(x = "Number of reads", y = "Sample", fill = "Preprocessing step    ") +
     make_theme(setFill = T, setCol = F, x_angle = 30)
 ggsave("04_Results/Figures/summary_of_preprocessing.pdf")
-
-ggplot() +
-  geom_bar(data = df_summary,
-           aes(y = factor(ID, ID_order),
-               x = reads,
-               fill = type,
-               group = type
-           ), color = "black",
-           stat = "identity", position = "dodge"
-  ) +
-  facet_wrap(~ Treatment, scale = "free") +
-  scale_x_continuous(labels=unit_format(unit = "K", scale = 1e-3)) +
-  labs(x = "Number of reads", y = "Sample", fill = "Preprocessing step    ") +
-    make_theme(setFill = T, setCol = F, x_angle = 30)
-ggsave("04_Results/Figures/summary_of_preprocessing_free.pdf")
 ```
 
 ```{r}
@@ -344,11 +331,11 @@ community_b <- c("ESL0820", "ESL0170", "ESL0198", "ESL0199", "ESL0819", "ESL0394
 silva_DB_assignTax <- "database/silva_nr99_v138_wSpecies_train_set.fa.gz"
 # taxonomySilva <- assignTaxonomy(seqtable_nochim, silva_DB_assignTax, minBoot = 80, multithread=TRUE, verbose = TRUE)
 # saveRDS(taxonomySilva, "RDS/taxonomySilva.rds")
-taxonomySilva <- readRDS("RDS/taxonomySilva.rds")
+taxonomySilva <- readRDS("04_Results/RDS/taxonomySilva.rds")
 formatted_DB_assignSpec <- "/scratch/aprasad/2023-pacbio_sequence_analysis/database/pilot_experiment_sequences_for_species_assignment.fasta"
 # taxonomyCommunity <- assignSpecies(taxonomySilva, formatted_DB_assignSpec, allowMultiple = T, verbose = T)
 # saveRDS(taxonomyCommunity, "RDS/taxonomyCommunity.rds")
-taxonomyCommunity <- readRDS("RDS/taxonomyCommunity.rds")
+taxonomyCommunity <- readRDS("04_Results/RDS/taxonomyCommunity.rds")
 taxonomy_df <- taxonomySilva %>% 
                 as.data.frame %>%
                   rownames_to_column("ASV") %>%
@@ -428,14 +415,14 @@ taxa_names(ps_raw) <- paste0("ASV", seq(ntaxa(ps_raw)))
 ps <- ps_raw
 
 table = merge(tax_table(ps),t(otu_table(ps)), by="row.names")
-write.table(table, "04_Results/ASVtable.txt", sep="\t", row.names = F)
+write.table(table, "04_Results/Taxonomy/ASVtable.txt", sep="\t", row.names = F)
 
 # Export to FASTA with Biostrings
-Biostrings::writeXStringSet(refseq(ps), "04_Results/phyloseq_ASVs.fasta",append=FALSE, format="fasta")
+Biostrings::writeXStringSet(refseq(ps), "04_Results/Taxonomy/phyloseq_ASVs.fasta",append=FALSE, format="fasta")
 # save Phyloseq object
-saveRDS(ps, 'RDS/phyloseq_object_raw.rds')
+# saveRDS(ps, 'RDS/phyloseq_object_raw.rds')
 # Check that you can import it
-ps <- readRDS("RDS/phyloseq_object_raw.rds")
+ps_raw <- readRDS("04_Results/RDS/phyloseq_object_raw.rds")
 ```
 
 ```{r}
@@ -474,17 +461,18 @@ abundance_mat_alq <- adjusted_copy_numbers_aliquots %>%
                         replace(is.na(.), 0) %>%
                         column_to_rownames("sample_Sample") %>%
                         as.matrix
-                    
+
 treatment_names <- rownames(abundance_mat_alq) %>% as.data.frame() %>% left_join(psmelt(ps) %>% ungroup() %>% select(sample_Sample, Treatment) %>% unique, by = c(. = "sample_Sample")) %>% pull(Treatment)
 genus_names <- colnames(abundance_mat_alq) %>% as.data.frame() %>% left_join(psmelt(ps) %>% ungroup() %>% select(OTU, Genus) %>% unique, by = c(. = "OTU")) %>% pull(Genus)
+species_names <- colnames(abundance_mat_alq) %>% as.data.frame() %>% left_join(psmelt(ps) %>% ungroup() %>% select(OTU, Species, Genus) %>% unique %>% mutate(Species_name = paste0(Genus, " ", Species)), by = c(. = "OTU")) %>% pull(Species_name)
 SDP_names <- colnames(abundance_mat_alq) %>% as.data.frame() %>% left_join(psmelt(ps) %>% ungroup() %>% select(OTU, SDP) %>% unique, by = c(. = "OTU")) %>% pull(SDP)
 strain_name <- colnames(abundance_mat_alq) %>% as.data.frame() %>% left_join(psmelt(ps) %>% ungroup() %>% select(OTU, SDP, Strain) %>% unique %>% mutate(Strain_name = paste0(SDP, "--", Strain)), by = c(. = "OTU")) %>% pull(Strain_name)
 column_ba = HeatmapAnnotation(SDP = SDP_names,
-                              Genus = genus_names,
                               Strain = strain_name,
-                       col = list(SDP = make_col_list(SDP_names, "Spectral"),
-                                  Genus = make_col_list(genus_names, "Set1"),
-                                  Strain = make_col_list(strain_name, "Pastel1")
+                              Species = species_names,
+                       col = list(SDP = SDPColors,
+                                  Strain = strainColors,
+                                  Species = extend_colors(species_names, speciesColors, greys = F, "Pastel1")
                        ), border = T
                     )
 community_names <- colnames(abundance_mat_alq) %>% as.data.frame() %>% left_join(psmelt(ps_raw) %>% ungroup() %>% select(OTU, Community) %>% unique, by = c(. = "OTU")) %>% pull(Community)
@@ -496,13 +484,12 @@ column_ha = HeatmapAnnotation(community = community_names,
                     )
 column_split <- community_inferred_names %>% as.factor
 row_split <- treatment_names %>% as.factor
+range_seq <- c(0, 100, 1000, 10000, 100000)
 heatmap_obj = Heatmap(abundance_mat_alq,
-        col = colorRamp2(c(0, 1000, 10000, 100000, 1000000, 1000000, 10000000), 
+        col = colorRamp2(range_seq,
                          colors = c(brewer.pal(9, "GnBu")[1],
-                                    brewer.pal(9, "GnBu")[2],
-                                    brewer.pal(9, "GnBu")[3],
                                     brewer.pal(9, "GnBu")[4],
-                                    brewer.pal(9, "GnBu")[7],
+                                    brewer.pal(9, "GnBu")[6],
                                     brewer.pal(9, "GnBu")[8],
                                     brewer.pal(9, "GnBu")[9]
                                     )
@@ -528,6 +515,105 @@ draw(heatmap_obj, merge_legend = F, heatmap_legend_side = "right", annotation_le
 dev.off()
 draw(heatmap_obj, merge_legend = F, heatmap_legend_side = "right", annotation_legend_side = "left")
 
+column_split <- species_names %>% as.factor
+row_split <- treatment_names %>% as.factor
+range_seq <- c(0, 100, 1000, 10000, 100000)
+heatmap_obj = Heatmap(abundance_mat_alq,
+        col = colorRamp2(range_seq,
+                         colors = c(brewer.pal(9, "GnBu")[1],
+                                    brewer.pal(9, "GnBu")[4],
+                                    brewer.pal(9, "GnBu")[6],
+                                    brewer.pal(9, "GnBu")[8],
+                                    brewer.pal(9, "GnBu")[9]
+                                    )
+                                  ),
+        column_split = column_split,
+        row_split = row_split,
+        row_title_rot = 0,
+        column_title_rot = 65,
+        column_title_gp = grid::gpar(fontsize = 10),
+        # row_title_gp = grid::gpar(fontsize = 0),
+        border = T,
+        heatmap_legend_param = list(title = "Absolute Abundance"),
+        top_annotation = column_ba, 
+        # right_annotation = row_ha,
+        bottom_annotation = column_ha,
+        column_names_gp = grid::gpar(fontsize = 0),
+        row_names_gp = grid::gpar(fontsize = 10, position = "bottom"),
+        cluster_rows = F,
+        cluster_columns = F
+        )
+pdf("04_Results/Figures/Heatmap_ASVs_aliquots_absolute_abundance_by_species.pdf", width = 11, height = 8)
+draw(heatmap_obj, merge_legend = F, heatmap_legend_side = "right", annotation_legend_side = "left")
+dev.off()
+draw(heatmap_obj, merge_legend = F, heatmap_legend_side = "right", annotation_legend_side = "left")
+
+column_split <- SDP_names %>% as.factor
+row_split <- treatment_names %>% as.factor
+range_seq <- c(0, 100, 1000, 10000, 100000)
+heatmap_obj = Heatmap(abundance_mat_alq,
+        col = colorRamp2(range_seq,
+                         colors = c(brewer.pal(9, "GnBu")[1],
+                                    brewer.pal(9, "GnBu")[4],
+                                    brewer.pal(9, "GnBu")[6],
+                                    brewer.pal(9, "GnBu")[8],
+                                    brewer.pal(9, "GnBu")[9]
+                                    )
+                                  ),
+        column_split = column_split,
+        row_split = row_split,
+        row_title_rot = 0,
+        column_title_rot = 45,
+        column_title_gp = grid::gpar(fontsize = 8),
+        # row_title_gp = grid::gpar(fontsize = 0),
+        border = T,
+        heatmap_legend_param = list(title = "Absolute Abundance"),
+        top_annotation = column_ba, 
+        # right_annotation = row_ha,
+        bottom_annotation = column_ha,
+        column_names_gp = grid::gpar(fontsize = 0),
+        row_names_gp = grid::gpar(fontsize = 10, position = "bottom"),
+        cluster_rows = F,
+        cluster_columns = F
+        )
+pdf("04_Results/Figures/Heatmap_ASVs_aliquots_absolute_abundance_by_SDP.pdf", width = 11, height = 8)
+draw(heatmap_obj, merge_legend = F, heatmap_legend_side = "right", annotation_legend_side = "left")
+dev.off()
+draw(heatmap_obj, merge_legend = F, heatmap_legend_side = "right", annotation_legend_side = "left")
+
+column_split <- strain_name %>% as.factor
+row_split <- treatment_names %>% as.factor
+range_seq <- c(0, 100, 1000, 10000, 100000)
+heatmap_obj = Heatmap(abundance_mat_alq,
+        col = colorRamp2(range_seq,
+                         colors = c(brewer.pal(9, "GnBu")[1],
+                                    brewer.pal(9, "GnBu")[4],
+                                    brewer.pal(9, "GnBu")[6],
+                                    brewer.pal(9, "GnBu")[8],
+                                    brewer.pal(9, "GnBu")[9]
+                                    )
+                                  ),
+        column_split = column_split,
+        row_split = row_split,
+        row_title_rot = 0,
+        column_title_rot = 65,
+        column_title_gp = grid::gpar(fontsize = 8),
+        # row_title_gp = grid::gpar(fontsize = 0),
+        border = T,
+        heatmap_legend_param = list(title = "Absolute Abundance"),
+        top_annotation = column_ba, 
+        # right_annotation = row_ha,
+        bottom_annotation = column_ha,
+        column_names_gp = grid::gpar(fontsize = 0),
+        row_names_gp = grid::gpar(fontsize = 10),
+        cluster_rows = F,
+        cluster_columns = F
+        )
+pdf("04_Results/Figures/Heatmap_ASVs_aliquots_absolute_abundance_by_strain.pdf", width = 11, height = 8)
+draw(heatmap_obj, merge_legend = F, heatmap_legend_side = "right", annotation_legend_side = "left")
+dev.off()
+draw(heatmap_obj, merge_legend = F, heatmap_legend_side = "right", annotation_legend_side = "left")
+
 adjusted_copy_numbers_samples <- adjusted_copy_numbers %>%
                                     filter(!grepl("alq", Treatment)) %>%
                                     unique() %>%
@@ -542,12 +628,15 @@ abundance_mat_samples <- adjusted_copy_numbers_samples %>%
                         as.matrix                             
 treatment_names <- rownames(abundance_mat_samples) %>% as.data.frame() %>% left_join(psmelt(ps) %>% ungroup() %>% select(Sample, Treatment) %>% unique, by = c(. = "Sample")) %>% pull(Treatment)
 genus_names <- colnames(abundance_mat_samples) %>% as.data.frame() %>% left_join(psmelt(ps) %>% ungroup() %>% select(OTU, Genus) %>% unique, by = c(. = "OTU")) %>% pull(Genus)
+species_names <- colnames(abundance_mat_samples) %>% as.data.frame() %>% left_join(psmelt(ps) %>% ungroup() %>% select(OTU, Species, Genus) %>% unique %>% mutate(Species_name = paste0(Genus, " ", Species)), by = c(. = "OTU")) %>% pull(Species_name)
 SDP_names <- colnames(abundance_mat_samples) %>% as.data.frame() %>% left_join(psmelt(ps) %>% ungroup() %>% select(OTU, SDP) %>% unique, by = c(. = "OTU")) %>% pull(SDP)
-strain_name <- colnames(abundance_mat_samples) %>% as.data.frame() %>% left_join(psmelt(ps) %>% ungroup() %>% select(OTU, SDP, Strain) %>% unique %>% mutate(Strain_name = paste0(SDP, "--", Strain)), by = c(. = "OTU")) %>% pull(Strain_name)
+strain_names <- colnames(abundance_mat_samples) %>% as.data.frame() %>% left_join(psmelt(ps) %>% ungroup() %>% select(OTU, SDP, Strain) %>% unique %>% mutate(Strain_name = paste0(SDP, "--", Strain)), by = c(. = "OTU")) %>% pull(Strain_name)
 column_ba = HeatmapAnnotation(SDP = SDP_names,
-                              Genus = genus_names,
-                       col = list(SDP = make_col_list(SDP_names, "Spectral"),
-                                  Genus = make_col_list(genus_names, "Set1")
+                              Species = species_names,
+                              # Genus = genus_names,
+                       col = list(SDP = SDPColors,
+                                  Species = extend_colors(species_names, speciesColors, greys = F, "Pastel1")
+                                  # Genus = genusColors
                        ), border = T
                     )
 community_names <- colnames(abundance_mat_samples) %>% as.data.frame() %>% left_join(psmelt(ps_raw) %>% ungroup() %>% select(OTU, Community) %>% unique, by = c(. = "OTU")) %>% pull(Community)
@@ -557,11 +646,11 @@ column_ha = HeatmapAnnotation(community = community_names,
                               col = list(community = communityColors,
                                           community_inferred = communityColors), border = T
                     )
-pdf("04_Results/Figures/Heatmap_ASVs_absolute_abundance.pdf", width = 11, height = 8)
 column_split <- community_inferred_names %>% as.factor
 row_split <- treatment_names %>% as.factor
+range_seq <- c(0, 1000, 10000, 100000, 1000000, 1000000, 10000000)
 heatmap_obj = Heatmap(abundance_mat_samples,
-        col = colorRamp2(c(0, 1000, 10000, 100000, 1000000, 1000000, 10000000), 
+        col = colorRamp2(range_seq, 
                          colors = c(brewer.pal(9, "GnBu")[1],
                                     brewer.pal(9, "GnBu")[2],
                                     brewer.pal(9, "GnBu")[3],
@@ -587,6 +676,112 @@ heatmap_obj = Heatmap(abundance_mat_samples,
         cluster_rows = F,
         cluster_columns = F
         )
+pdf("04_Results/Figures/Heatmap_ASVs_absolute_abundance.pdf", width = 11, height = 8)
+draw(heatmap_obj, merge_legend = F, heatmap_legend_side = "right", annotation_legend_side = "left")
+dev.off()
+draw(heatmap_obj, merge_legend = F, heatmap_legend_side = "right", annotation_legend_side = "left")
+
+column_split <- strain_names %>% as.factor
+row_split <- treatment_names %>% as.factor
+range_seq <- c(0, 1000, 10000, 100000, 1000000, 1000000, 10000000)
+heatmap_obj = Heatmap(abundance_mat_samples,
+        col = colorRamp2(range_seq, 
+                         colors = c(brewer.pal(9, "GnBu")[1],
+                                    brewer.pal(9, "GnBu")[2],
+                                    brewer.pal(9, "GnBu")[3],
+                                    brewer.pal(9, "GnBu")[4],
+                                    brewer.pal(9, "GnBu")[7],
+                                    brewer.pal(9, "GnBu")[8],
+                                    brewer.pal(9, "GnBu")[9]
+                                    )
+                                  ),
+        column_split = column_split,
+        row_split = row_split,
+        row_title_rot = 0,
+        column_title_rot = 65,
+        column_title_gp = grid::gpar(fontsize = 6),
+        # row_title_gp = grid::gpar(fontsize = 0),
+        border = T,
+        heatmap_legend_param = list(title = "Absolute Abundance"),
+        top_annotation = column_ba, 
+        # right_annotation = row_ha,
+        bottom_annotation = column_ha,
+        column_names_gp = grid::gpar(fontsize = 0),
+        row_names_gp = grid::gpar(fontsize = 10),
+        cluster_rows = F,
+        cluster_columns = F
+        )
+pdf("04_Results/Figures/Heatmap_ASVs_absolute_abundance_by_strain.pdf", width = 11, height = 8)
+draw(heatmap_obj, merge_legend = F, heatmap_legend_side = "right", annotation_legend_side = "left")
+dev.off()
+draw(heatmap_obj, merge_legend = F, heatmap_legend_side = "right", annotation_legend_side = "left")
+
+column_split <- SDP_names %>% as.factor
+row_split <- treatment_names %>% as.factor
+range_seq <- c(0, 1000, 10000, 100000, 1000000, 1000000, 10000000)
+heatmap_obj = Heatmap(abundance_mat_samples,
+        col = colorRamp2(range_seq, 
+                         colors = c(brewer.pal(9, "GnBu")[1],
+                                    brewer.pal(9, "GnBu")[2],
+                                    brewer.pal(9, "GnBu")[3],
+                                    brewer.pal(9, "GnBu")[4],
+                                    brewer.pal(9, "GnBu")[7],
+                                    brewer.pal(9, "GnBu")[8],
+                                    brewer.pal(9, "GnBu")[9]
+                                    )
+                                  ),
+        column_split = column_split,
+        row_split = row_split,
+        row_title_rot = 0,
+        column_title_rot = 45,
+        column_title_gp = grid::gpar(fontsize = 6),
+        # row_title_gp = grid::gpar(fontsize = 0),
+        border = T,
+        heatmap_legend_param = list(title = "Absolute Abundance"),
+        top_annotation = column_ba, 
+        # right_annotation = row_ha,
+        bottom_annotation = column_ha,
+        column_names_gp = grid::gpar(fontsize = 0),
+        row_names_gp = grid::gpar(fontsize = 10),
+        cluster_rows = F,
+        cluster_columns = F
+        )
+pdf("04_Results/Figures/Heatmap_ASVs_absolute_abundance_by_SDP.pdf", width = 11, height = 8)
+draw(heatmap_obj, merge_legend = F, heatmap_legend_side = "right", annotation_legend_side = "left")
+dev.off()
+draw(heatmap_obj, merge_legend = F, heatmap_legend_side = "right", annotation_legend_side = "left")
+
+column_split <- genus_names %>% as.factor
+row_split <- treatment_names %>% as.factor
+range_seq <- c(0, 1000, 10000, 100000, 1000000, 1000000, 10000000)
+heatmap_obj = Heatmap(abundance_mat_samples,
+        col = colorRamp2(range_seq, 
+                         colors = c(brewer.pal(9, "GnBu")[1],
+                                    brewer.pal(9, "GnBu")[2],
+                                    brewer.pal(9, "GnBu")[3],
+                                    brewer.pal(9, "GnBu")[4],
+                                    brewer.pal(9, "GnBu")[7],
+                                    brewer.pal(9, "GnBu")[8],
+                                    brewer.pal(9, "GnBu")[9]
+                                    )
+                                  ),
+        column_split = column_split,
+        row_split = row_split,
+        row_title_rot = 0,
+        column_title_rot = 65,
+        column_title_gp = grid::gpar(fontsize = 8),
+        # row_title_gp = grid::gpar(fontsize = 0),
+        border = T,
+        heatmap_legend_param = list(title = "Absolute Abundance"),
+        top_annotation = column_ba, 
+        # right_annotation = row_ha,
+        bottom_annotation = column_ha,
+        column_names_gp = grid::gpar(fontsize = 0),
+        row_names_gp = grid::gpar(fontsize = 10),
+        cluster_rows = F,
+        cluster_columns = F
+        )
+pdf("04_Results/Figures/Heatmap_ASVs_absolute_abundance_by_genus.pdf", width = 11, height = 8)
 draw(heatmap_obj, merge_legend = F, heatmap_legend_side = "right", annotation_legend_side = "left")
 dev.off()
 draw(heatmap_obj, merge_legend = F, heatmap_legend_side = "right", annotation_legend_side = "left")
