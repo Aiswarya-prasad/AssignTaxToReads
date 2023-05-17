@@ -1,7 +1,7 @@
 make_theme <- function(theme_name=theme_classic() ,max_colors=0, palettefill="Pastel1", palettecolor="Dark2", modify_guide = T,
                         setFill=TRUE, setCol=TRUE,
                         guide_nrow=2, guide_nrow_byrow=TRUE, leg_pos="top", leg_size=12,
-                        axis_x_title = 12, axis_y_title = 12,
+                        axis_x_title = 12, axis_y_title = 12, title_size = 12,
                         x_angle=0 ,x_vj=0, x_hj=0, x_size=12,
                         y_angle=0 ,y_vj=0, y_hj=0, y_size=12){
   n_11 = c("BrBG", "PiYG", "PRGn", "PuOr", "RdBu", "RdGy", "RdYlBu", "RdYlGn", "Spectral")
@@ -38,6 +38,7 @@ make_theme <- function(theme_name=theme_classic() ,max_colors=0, palettefill="Pa
   theme_params <- theme(axis.text.x = element_text(angle = x_angle,
     vjust = x_vj, hjust=x_hj,
     size = x_size),
+    plot.title = element_text(size=title_size),
     axis.text.y = element_text(angle = y_angle,
       vjust = y_vj, hjust=y_hj,
       size = y_size),
@@ -117,7 +118,6 @@ get_number_assigned <- function(rank_name) {
     return(num_ASVs)
   }
 }
-unique(genus_names)
 # genusColors <- c("Bombilactobacillus" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[1], "#FFFFFF"))(10), -1)[1],
 #                     "Lactobacillus" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[1], "#FFFFFF"))(10), -1)[4],
 #                     "Bifidobacterium" = brewer.pal(11, "Spectral")[3],
@@ -252,8 +252,8 @@ infer_community_from_aliquot <- function(OTU_given){
   }
   return("unknown")
 }
-strainColors <- c("bifido_1.1--ESL0825" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[6], "#FFFFFF"))(5), -1)[1],
-                  "bifido_1.1--ESL0820" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[6], "#FFFFFF"))(5), -1)[3],
+strainColors <- c("bifido_1.1--ESL0825" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[7], "#FFFFFF"))(5), -1)[1],
+                  "bifido_1.1--ESL0820" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[7], "#FFFFFF"))(7), -1)[6],
                   "bifido_1.3--ESL0822" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[7], "#FFFFFF"))(5), -1)[1],
                   "bifido_1.3--ESL0170" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[7], "#FFFFFF"))(5), -1)[3],  
                   "bifido_1.4.2--ESL0827" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[9], "#FFFFFF"))(5), -1)[1],
@@ -265,12 +265,32 @@ strainColors <- c("bifido_1.1--ESL0825" = head(colorRampPalette(c(brewer.pal(11,
                   "firm4_1--ESL0295" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[1], "#FFFFFF"))(5), -1)[1],
                   "firm5_1--ESL0185" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[2], "#FFFFFF"))(5), -1)[1],
                   "firm5_1--ESL0263" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[2], "#FFFFFF"))(5), -1)[3],
-                  "firm5_2--ESL0262" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[3], "#FFFFFF"))(5), -1)[1],
-                  "firm5_2--ESL0183" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[3], "#FFFFFF"))(5), -1)[3],
+                  "firm5_2--ESL0183" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[3], "#FFFFFF"))(5), -1)[1],
+                  "firm5_2--ESL0262" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[3], "#FFFFFF"))(5), -1)[3],
                   "firm5_3--ESL0184" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[4], "#FFFFFF"))(5), -1)[1],
                   "firm5_4--ESL0186" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[5], "#FFFFFF"))(5), -1)[1],
                   "firm5_4--ESL0261"= head(colorRampPalette(c(brewer.pal(11, "Spectral")[5], "#FFFFFF"))(5), -1)[3],
                   "NA--NA" = "grey"
+)
+strainIDColors <- c("ESL0825" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[7], "#FFFFFF"))(5), -1)[1],
+                  "ESL0820" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[7], "#FFFFFF"))(7), -1)[6],
+                  "ESL0822" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[7], "#FFFFFF"))(5), -1)[1],
+                  "ESL0170" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[7], "#FFFFFF"))(5), -1)[3],  
+                  "ESL0827" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[9], "#FFFFFF"))(5), -1)[1],
+                  "ESL0199" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[9], "#FFFFFF"))(5), -1)[3],
+                  "ESL0198" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[8], "#FFFFFF"))(5), -1)[1],
+                  "ESL0200" =  head(colorRampPalette(c(brewer.pal(11, "Spectral")[10], "#FFFFFF"))(5), -1)[1],
+                  "ESL0819" =  head(colorRampPalette(c(brewer.pal(11, "Spectral")[10], "#FFFFFF"))(5), -1)[3],
+                  "ESL0197" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[11], "#FFFFFF"))(5), -1)[1],
+                  "ESL0295" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[1], "#FFFFFF"))(5), -1)[1],
+                  "ESL0185" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[2], "#FFFFFF"))(5), -1)[1],
+                  "ESL0263" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[2], "#FFFFFF"))(5), -1)[3],
+                  "ESL0183" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[3], "#FFFFFF"))(5), -1)[1],
+                  "ESL0262" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[3], "#FFFFFF"))(5), -1)[3],
+                  "ESL0184" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[4], "#FFFFFF"))(5), -1)[1],
+                  "ESL0186" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[5], "#FFFFFF"))(5), -1)[1],
+                  "ESL0261"= head(colorRampPalette(c(brewer.pal(11, "Spectral")[5], "#FFFFFF"))(5), -1)[3],
+                  "NA" = "grey"
 )
 SDPColors <- c("bifido_1.1" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[6], "#FFFFFF"))(5), -1)[1],
                "bifido_1.3" = head(colorRampPalette(c(brewer.pal(11, "Spectral")[7], "#FFFFFF"))(5), -1)[1],
