@@ -10,7 +10,6 @@ dependencies:
   - biopython
   - fastqc
   - trimmomatic
-  - cutadapt
   - samtools
   - bcftools
   - pysam
@@ -19,7 +18,7 @@ dependencies:
   - numpy
   - pandas
   - argparse
-  - r-base
+  - r-base>=4.0
   - r-rmarkdown
   - r-ggplot2
   - r-prettydoc
@@ -49,9 +48,6 @@ dependencies:
   - bioconductor-phyloseq
   - bioconductor-biostrings
   - bioconductor-complexheatmap
-  - bioconductor-dada2
-  - bioconductor-shortread
+  - bioconductor-dada2=3.11
   - bioconductor-biomformat
   - bioconductor-microbiome
-  - bioconductor-decipher
-  - bbmap
