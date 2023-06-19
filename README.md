@@ -1,5 +1,11 @@
 # Assign reads to strain from databse
 
+The fastq files from the pacbio run are first renamed and stored in the appropriate directory. The rest of the analysis (including trimming and filtering) is done within the R chunks written in Analysis_and_report.Rmd.
+
+# Old approach
+
+<This is the older approach used but it was not worth the computational time as I find that the dada2 approach works well>
+
 This repository is the code used to do the initial processing of the pacbio reads obtained from pacbio sequencing of a defined community of about 10 strains per individual. Their genomes are sequenced and 16S region sequence known. The snakemake pipeline reads the raw reads, renamed them as specified in the config file and then reads through them and assigned each read to a 16S sequence in the database fasta file after subsetting it to the strains used in the experiment as specified by the config file. Final summary of counts can be found per sample in the directory called 03_assign_reads_to_strain.
 
 To run snakemake in curnagl, use snakemake -p --use-conda --conda-prefix /scratch/aprasad/built-envs/ --conda-frontend mamba --profile slurm --restart-times 0 -r --cluster-cancel scancel --keep-going --rerun-incomplete --rerun-triggers mtime -n (snakemake v7.8.5)
