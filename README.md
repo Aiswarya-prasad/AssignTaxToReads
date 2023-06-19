@@ -2,7 +2,7 @@
 
 The fastq files from the pacbio run are first renamed and stored in the appropriate directory. The rest of the analysis (including trimming and filtering) is done within the R chunks written in Analysis_and_report.Rmd.
 
-# Old approach
+## Old approach
 
 <This is the older approach used but it was not worth the computational time as I find that the dada2 approach works well>
 
